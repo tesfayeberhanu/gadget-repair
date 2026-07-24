@@ -63,7 +63,7 @@ export default function HomePage() {
     <main className="page-wrap">
       <header className="hero-section">
         <div className="hero-nav">
-          <div className="brand-logo">I-FixLab251</div>
+          <div className="brand-logo">I-Fix</div>
           <input id="nav-toggle" type="checkbox" className="nav-toggle-input" />
           <label htmlFor="nav-toggle" className="nav-toggle" aria-label="Toggle menu">
             <span></span>
@@ -84,10 +84,6 @@ export default function HomePage() {
                 <option value="en">EN</option>
                 <option value="am">አማ</option>
               </select>
-            </div>
-            <div className="header-ctas">
-              <a className="button tertiary" href="#contact">Track Repair</a>
-              <a className="button primary" href="mailto:hello@gadgetrepair.example">Book a Call</a>
             </div>
           </div>
         </div>
@@ -128,16 +124,10 @@ export default function HomePage() {
         </div>
       </header>
 
-      <div className="action-strip">
-        <div className="action-items">
-          <a href="#track" className="action-item button-style">
-            <div className="icon">📱</div>
-            <div className="label">Track Repair</div>
-          </a>
-        </div>
-        <a href="#contact" className="action-cta">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          <span>Book Call</span>
+      <div className="action-strip centered-call-btn">
+        <a href="#contact" className="action-cta call-button">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <span>Book a Call</span>
         </a>
       </div>
 
