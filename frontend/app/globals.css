@@ -464,9 +464,10 @@ a {
     position: fixed;
     left: 12px;
     right: 12px;
-    bottom: 18px;
+    bottom: 20px;
     z-index: 80;
     padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
     width: auto;
   }
   .action-items { gap: 12px; }
@@ -883,7 +884,7 @@ a {
 
 @media (max-width: 720px) {
   .page-wrap {
-    padding: 24px 18px 56px;
+    padding: 24px 18px 120px;
   }
 
   .hero-nav,
@@ -892,6 +893,13 @@ a {
   .footer-bottom {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .hero-nav {
+    position: relative;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
   }
 
   .nav-links {
@@ -937,6 +945,12 @@ a {
     align-items: center;
     justify-items: center;
     cursor: pointer;
+    order: 3;
+    margin-left: auto;
+  }
+
+  .hero-language {
+    order: 2;
   }
 
   .nav-toggle span {
@@ -953,7 +967,7 @@ a {
     position: absolute;
     left: 18px;
     right: 18px;
-    top: 76px;
+    top: calc(100% + 12px);
     background: rgba(8,18,34,0.96);
     border-radius: 12px;
     padding: 14px 18px;
@@ -962,6 +976,7 @@ a {
     overflow: hidden;
     transition: max-height 320ms cubic-bezier(.2,.9,.3,1), opacity 220ms ease;
     opacity: 0;
+    order: 4;
   }
 
   /* When toggled open */
@@ -984,11 +999,24 @@ a {
     grid-template-columns: 1fr;
     gap: 18px;
   }
-
+  .hero-nav {
+    align-items: center;
+    padding: 18px 18px;
+  }
+  .brand-logo {
+    order: 1;
+  }
+  .hero-language {
+    order: 2;
+    margin-left: auto;
+  }
+  .nav-toggle {
+    order: 3;
+    margin-left: 10px;
+  }
   .hero-image-card {
     min-height: 260px;
   }
-
   .hero-copy-panel h1 {
     font-size: clamp(2rem, 7vw, 3.2rem);
   }
@@ -1001,8 +1029,36 @@ a {
   .materials-grid,
   .gallery-grid,
   .feature-grid,
-  .review-grid {
+  .review-grid,
+  .milestone-grid,
+  .milestone-boxes {
     grid-template-columns: 1fr;
+  }
+
+  .milestone-visual {
+    min-height: auto;
+    width: 100%;
+  }
+
+  .milestone-banner {
+    padding: 28px 22px;
+    font-size: 1.2rem;
+  }
+
+  .milestone-boxes {
+    gap: 12px;
+  }
+
+  .milestone-boxes div {
+    padding: 18px;
+  }
+
+  .hero-image-card {
+    min-height: 260px;
+  }
+
+  .hero-copy-panel h1 {
+    font-size: clamp(2rem, 7vw, 3.2rem);
   }
 
   .brand-strip {
