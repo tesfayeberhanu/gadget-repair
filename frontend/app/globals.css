@@ -2,7 +2,12 @@
   color-scheme: dark;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: #081125;
-  color: #eaf4ff;
+  --navy: #081125;
+  --accent: #61c5ff;
+  --light-text: #eaf4ff;
+  --panel-bg: #ffffff;
+  --panel-text: #000000;
+  color: var(--light-text);
   font-size: 16px;
   line-height: 1.75;
 }
@@ -46,12 +51,22 @@ a {
   padding: 16px 26px;
   border-radius: 999px;
   font-weight: 700;
-  transition: transform 180ms ease, background-color 180ms ease, color 180ms ease;
+  transition: transform 200ms cubic-bezier(.2,.9,.3,1),
+    box-shadow 220ms cubic-bezier(.2,.9,.3,1),
+    background-color 180ms ease,
+    color 180ms ease;
   text-decoration: none;
+  will-change: transform, box-shadow;
 }
 
 .button:hover {
-  transform: translateY(-1px);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 28px 60px rgba(8, 28, 56, 0.24);
+}
+
+.button:active {
+  transform: translateY(-1px) scale(0.995);
+  box-shadow: 0 14px 34px rgba(8, 28, 56, 0.18);
 }
 
 .button.primary {
@@ -113,16 +128,49 @@ a {
 }
 
 .nav-links a {
+  position: relative;
   color: rgba(234, 244, 255, 0.86);
-  transition: color 180ms ease, transform 180ms ease;
+  transition: color 160ms ease, transform 200ms cubic-bezier(.2,.9,.3,1);
   opacity: 0;
   transform: translateY(-8px);
   animation: nav-fade-in 0.6s ease forwards;
 }
 
+.nav-links a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -6px;
+  height: 3px;
+  background: linear-gradient(90deg, rgba(97,197,255,0.28), rgba(47,147,255,0.36));
+  transform-origin: left center;
+  transform: scaleX(0);
+  transition: transform 260ms cubic-bezier(.2,.9,.3,1), opacity 180ms ease;
+  border-radius: 8px;
+  opacity: 0;
+}
+
 .nav-links a:hover {
   color: #d0ebff;
   transform: translateY(-2px);
+}
+
+.nav-links a:hover::after,
+.nav-links a:focus::after {
+  transform: scaleX(1);
+  opacity: 1;
+}
+
+/* ለመንቀሳቀስ ቀንስ የሚፈልጉ ተጠቃሚዎችን አክብር */
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .nav-links a {
+    transition: none !important;
+    animation: none !important;
+    transform: none !important;
+  }
+  .nav-links a::after { display: none; }
 }
 
 .nav-links a:nth-child(1) { animation-delay: 0.12s; }
@@ -149,6 +197,12 @@ a {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.07);
   border: 1px solid rgba(97, 197, 255, 0.18);
+}
+
+.header-ctas {
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
 }
 
 .language-select label {
@@ -317,8 +371,199 @@ a {
   font-size: 0.85rem;
 }
 
+/* Rounded action strip (icons + label + CTA) */
+.action-strip {
+  display: none; /* only show on mobile */
+  margin: 28px auto;
+  width: min(980px, calc(100% - 48px));
+  align-items: center;
+  gap: 18px;
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: rgba(8,18,34,0.72);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.04);
+  box-shadow: 0 24px 60px rgba(4,10,22,0.28);
+}
+
+.action-items {
+  display: flex;
+  gap: 22px;
+  flex: 1 1 auto;
+  align-items: center;
+}
+
+.action-item {
+  display: inline-grid;
+  grid-auto-flow: row;
+  gap: 8px;
+  align-items: center;
+  justify-items: center;
+  color: var(--light-text);
+  text-decoration: none;
+  min-width: 72px;
+}
+
+.action-item .icon {
+  width: 56px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+  color: #ffffff;
+  font-size: 1.35rem;
+}
+
+.action-item .label {
+  font-size: 0.92rem;
+  color: rgba(234,244,255,0.9);
+}
+
+/* button-like small action for Track Repair */
+.action-item.button-style {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: linear-gradient(90deg, #2f93ff, #61c5ff);
+  color: #081427;
+  border-radius: 999px;
+  min-width: auto;
+}
+
+.action-item.button-style .icon {
+  width: 28px;
+  height: 28px;
+  background: rgba(255,255,255,0.9);
+  color: #081427;
+  border-radius: 8px;
+  font-size: 1rem;
+}
+
+.action-item.button-style .label {
+  color: #081427;
+  font-weight: 800;
+}
+
+.action-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2f93ff, #61c5ff);
+  color: #081427;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+@media (max-width: 720px) {
+  .action-strip { display: flex; }
+  .action-strip {
+    position: fixed;
+    left: 12px;
+    right: 12px;
+    bottom: 18px;
+    z-index: 80;
+    padding: 10px 12px;
+    width: auto;
+  }
+  .action-items { gap: 12px; }
+  .action-item .icon { width: 46px; height: 40px; }
+  .action-item .label { font-size: 0.8rem; }
+  .action-cta { padding: 10px 14px; font-size: 0.95rem; }
+}
+
 .section {
   margin-top: 88px;
+}
+
+/* ለስፕሊት ሰማያዊ/ነጭ ንድፍ የብርቅ ፓነል አማራጭ */
+.light-section {
+  background: var(--panel-bg);
+  color: var(--panel-text);
+  padding: 48px 24px;
+  border-radius: 18px;
+  box-shadow: 0 18px 40px rgba(9, 25, 48, 0.06);
+}
+
+.light-section .eyebrow {
+  color: #6b7f99;
+}
+
+.light-section .info-card,
+.light-section .feature-card,
+.light-section .gallery-card,
+.light-section .material-card,
+.light-section .review-card {
+  background: transparent;
+  border: 1px solid rgba(8, 20, 36, 0.06);
+  box-shadow: 0 12px 30px rgba(9, 25, 48, 0.04);
+}
+
+.light-section .brand-strip {
+  background: transparent;
+  border: none;
+}
+
+.light-section .hero-copy,
+.light-section p,
+.light-section h2,
+.light-section h3 {
+  color: var(--panel-text);
+}
+
+.light-section .link-button,
+.light-section .button.tertiary {
+  color: var(--accent);
+}
+
+.light-section .button.primary {
+  color: #081427;
+  background: linear-gradient(135deg, #2f93ff, #61c5ff);
+}
+
+/* Make review and footer text dark when inside light panels */
+.light-section .review-card p,
+.light-section .review-meta strong,
+.light-section .review-meta span,
+.light-section .footer-top p,
+.light-section .footer-links a {
+  color: var(--panel-text);
+}
+
+/* ለማስተካከያ: በላይ ያሉ ካርዶችና መግለጫዎች በነጭ ፓነል ውስጥ ሲኖሩ ጥቁር ይሆናሉ */
+.light-section .material-card p,
+.light-section .material-card h3,
+.light-section .info-card p,
+.light-section .info-card h3,
+.light-section .gallery-card p,
+.light-section .gallery-card h3,
+.light-section .feature-card p,
+.light-section .feature-card h3 {
+  color: var(--panel-text);
+}
+
+.light-section .material-icon {
+  background: transparent;
+  color: var(--panel-text);
+  box-shadow: none;
+}
+
+/* ለማስተካከያ: የሚቀጥሉ መግለጫዎችና ራዕይ በነጭ ፓነል ውስጥ ጥቁር ይሆናሉ */
+.light-section .milestone-item strong,
+.light-section .milestone-item p,
+.light-section .milestone-copy h2 {
+  color: var(--panel-text);
+}
+
+/* እነዚያ የሚታዩ ክፍሎች (milestone visual) እንደ ቀድሞ ናቸው — ነጭ/ሰማያዊ ፕሮቶቶኖች */
+.light-section .milestone-visual .milestone-banner {
+  color: #ffffff;
+}
+.light-section .milestone-visual .milestone-boxes div {
+  color: #eaf4ff;
 }
 
 .info-section .info-grid,
@@ -672,5 +917,99 @@ a {
 
   .footer-bottom {
     gap: 8px;
+  }
+
+  /* Mobile navigation: hide links behind hamburger */
+  .nav-toggle-input {
+    display: none;
+  }
+
+  .nav-toggle {
+    display: inline-grid;
+    grid-auto-flow: row;
+    gap: 6px;
+    width: 38px;
+    height: 34px;
+    padding: 6px;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+    align-items: center;
+    justify-items: center;
+    cursor: pointer;
+  }
+
+  .nav-toggle span {
+    display: block;
+    width: 22px;
+    height: 2px;
+    background: var(--light-text);
+    border-radius: 2px;
+    transition: transform 220ms ease, opacity 180ms ease;
+  }
+
+  /* Hide desktop links and show collapsible list */
+  .nav-links {
+    position: absolute;
+    left: 18px;
+    right: 18px;
+    top: 76px;
+    background: rgba(8,18,34,0.96);
+    border-radius: 12px;
+    padding: 14px 18px;
+    display: block;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 320ms cubic-bezier(.2,.9,.3,1), opacity 220ms ease;
+    opacity: 0;
+  }
+
+  /* When toggled open */
+  .nav-toggle-input:checked ~ .nav-links {
+    max-height: 420px;
+    opacity: 1;
+  }
+
+  .nav-links a {
+    display: block;
+    padding: 10px 6px;
+    transform: none;
+    opacity: 1;
+  }
+
+  /* hide desktop header CTAs on mobile */
+  .header-ctas { display: none; }
+
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .hero-image-card {
+    min-height: 260px;
+  }
+
+  .hero-copy-panel h1 {
+    font-size: clamp(2rem, 7vw, 3.2rem);
+  }
+
+  .hero-buttons .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .materials-grid,
+  .gallery-grid,
+  .feature-grid,
+  .review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-strip {
+    overflow-x: auto;
+  }
+
+  .site-footer .footer-top {
+    grid-template-columns: 1fr;
   }
 }

@@ -53,9 +53,9 @@ const milestoneItems = [
 ];
 
 const reviews = [
-  { name: 'Jordan Walker', quote: 'Amazing service, my phone looked brand new again.', rating: '5.0' },
-  { name: 'Maya Patel', quote: 'Fast turnaround and friendly support every step of the way.', rating: '5.0' },
-  { name: 'Noah Kim', quote: 'Reliable repairs with transparent pricing and fast delivery.', rating: '4.9' },
+  { name: 'ጆርዳን ወልከር', quote: 'አሪፍ አገልግሎት፣ ስልኬ እንደ አዲስ ሆነ።', rating: '5.0' },
+  { name: 'ማያ ፓቴል', quote: 'ፈጣን እና ምቹ የሆነ ድጋፍ — በየደረጃው ደስ አለኝ።', rating: '5.0' },
+  { name: 'ኖአ ኪም', quote: 'ታማኝ ጥራት ጥራት እና ግልጽ ዋጋ፣ ፈጣን አስተናጋጅም ነው።', rating: '4.9' },
 ];
 
 export default function HomePage() {
@@ -64,6 +64,12 @@ export default function HomePage() {
       <header className="hero-section">
         <div className="hero-nav">
           <div className="brand-logo">I-FixLab251</div>
+          <input id="nav-toggle" type="checkbox" className="nav-toggle-input" />
+          <label htmlFor="nav-toggle" className="nav-toggle" aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+          </label>
           <nav className="nav-links">
             <a href="#services">Services</a>
             <a href="#repair">Repair</a>
@@ -71,7 +77,7 @@ export default function HomePage() {
             <a href="#reviews">Reviews</a>
             <a href="#blog">Blog</a>
           </nav>
-          <div className="hero-actions">
+          <div className="hero-language">
             <div className="language-select">
               <label htmlFor="language">ቋንቋ</label>
               <select id="language" name="language" defaultValue="en">
@@ -79,8 +85,10 @@ export default function HomePage() {
                 <option value="am">አማ</option>
               </select>
             </div>
-            <a className="button tertiary" href="#contact">Track Repair</a>
-            <a className="button primary" href="mailto:hello@gadgetrepair.example">Book a Call</a>
+            <div className="header-ctas">
+              <a className="button tertiary" href="#contact">Track Repair</a>
+              <a className="button primary" href="mailto:hello@gadgetrepair.example">Book a Call</a>
+            </div>
           </div>
         </div>
 
@@ -91,10 +99,7 @@ export default function HomePage() {
             <p className="hero-copy">
               Premium device repair with expert technicians, fast delivery, and transparent service. Trust us to restore your gadgets with care.
             </p>
-            <div className="hero-buttons">
-              <a className="button primary" href="#services">Start Repair</a>
-              <a className="button secondary" href="#milestone">Learn More</a>
-            </div>
+            
             <div className="hero-stats">
               <div>
                 <strong>15+</strong>
@@ -123,13 +128,26 @@ export default function HomePage() {
         </div>
       </header>
 
+      <div className="action-strip">
+        <div className="action-items">
+          <a href="#track" className="action-item button-style">
+            <div className="icon">📱</div>
+            <div className="label">Track Repair</div>
+          </a>
+        </div>
+        <a href="#contact" className="action-cta">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <span>Book Call</span>
+        </a>
+      </div>
+
       <section className="brand-strip">
         {brands.map((brand) => (
           <span key={brand}>{brand}</span>
         ))}
       </section>
 
-      <section id="services" className="section info-section">
+      <section id="services" className="section info-section light-section">
         <div className="info-grid">
           <div className="info-copy">
             <p className="eyebrow">Your trusted partner for gadget repairs</p>
@@ -155,7 +173,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="repair" className="section feature-section">
+      <section id="repair" className="section feature-section light-section">
         <div className="section-heading">
           <p className="eyebrow">Reliable Repairs</p>
           <h2>Explore our repair essentials.</h2>
@@ -173,7 +191,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section gallery-section">
+      <section className="section gallery-section light-section">
         <div className="section-heading">
           <p className="eyebrow">Explore Our Repair Section</p>
           <h2>Solutions designed for every device.</h2>
@@ -192,7 +210,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="section materials-section">
+      <section className="section materials-section light-section">
         <div className="section-heading">
           <p className="eyebrow">Repair Materials</p>
           <h2>Sample tools and devices we work with.</h2>
@@ -208,7 +226,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="milestone" className="section milestone-section">
+      <section id="milestone" className="section milestone-section light-section">
         <div className="milestone-grid">
           <div className="milestone-visual">
             <div className="milestone-banner">Ultimate Shield for Your Device</div>
@@ -232,7 +250,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id="reviews" className="section review-section">
+      <section id="reviews" className="section review-section light-section">
         <div className="section-heading">
           <p className="eyebrow">Client Reviews</p>
           <h2>Customers love our premium repair experience.</h2>
@@ -250,10 +268,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <footer className="site-footer">
+      <footer className="site-footer light-section">
         <div className="footer-top">
           <div>
-            <div className="brand-logo footer-logo">WEFIX</div>
+            <div className="brand-logo footer-logo">I-fixlab</div>
             <p>Premium gadget repair services with fast delivery and expert support.</p>
           </div>
           <div className="footer-links">
@@ -270,7 +288,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="footer-bottom">
-          <span>© 2026 WEFIX. All rights reserved.</span>
+          <span>© 2026 I-fixlab. All rights reserved.</span>
           <span>Designed for premium gadget owners.</span>
         </div>
       </footer>
