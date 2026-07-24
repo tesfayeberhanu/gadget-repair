@@ -766,16 +766,20 @@ a {
 
 .milestone-copy {
   display: grid;
-  gap: 24px;
+  gap: 14px;
+}
+
+.milestone-copy h2 {
+  margin: 0;
+  font-size: clamp(2rem, 3.2vw, 2.6rem);
+  line-height: 1.1;
 }
 
 .milestone-list {
   display: grid;
-  gap: 20px;
+  gap: 18px;
 }
 
-.milestone-item strong {
-  display: block;
   margin-bottom: 10px;
   font-size: 1rem;
   color: #ffffff;
@@ -1038,6 +1042,10 @@ a {
   .milestone-visual {
     min-height: auto;
     width: 100%;
+  }
+
+  .milestone-copy {
+    padding: 0 0 12px;
   }
 
   .milestone-banner {
