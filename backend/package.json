@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "/opt/homebrew/opt/node@22/bin/node --env-file=../.env src/server.js",
-    "start": "/opt/homebrew/opt/node@22/bin/node --env-file=../.env src/server.js"
+    "dev": "node --env-file=../.env src/server.js",
+    "start": "node src/server.js"
   }
 }

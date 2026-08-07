@@ -2,7 +2,8 @@ import { createServer } from 'node:http';
 import { getRole } from './auth.js';
 import { advanceRepair, createRepair, getWorkspace } from './service.js';
 
-const port = Number(process.env.BACKEND_PORT || 4000);
+const port = Number(process.env.PORT || process.env.BACKEND_PORT || 4000);
+const host = process.env.HOST || '0.0.0.0';
 const frontendOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:3002';
 
 const send = (response, status, body) => {
@@ -56,4 +57,4 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, '127.0.0.1', () => console.log(`iFixLab251 backend listening on http://127.0.0.1:${port}`));
+server.listen(port, host, () => console.log(`iFixLab251 backend listening on http://${host}:${port}`));

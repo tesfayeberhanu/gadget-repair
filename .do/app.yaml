@@ -1,0 +1,41 @@
+name: ifixlab251-api
+region: fra
+
+services:
+  - name: api
+    environment_slug: node-js
+    github:
+      repo: tesfayeberhanu/gadget-repair
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    build_command: npm ci && npm run db:generate
+    run_command: npm run db:migrate:deploy && npm run start:backend
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: apps-s-1vcpu-0.5gb
+    health_check:
+      http_path: /api/health
+    envs:
+      - key: NODE_ENV
+        value: production
+        scope: RUN_TIME
+        type: general
+      - key: PORT
+        value: "8080"
+        scope: RUN_TIME
+        type: general
+      - key: DATABASE_URL
+        value: ${db.DATABASE_URL}
+        scope: RUN_AND_BUILD_TIME
+        type: general
+      # Replace this value with the exact production Vercel origin before deploying.
+      - key: FRONTEND_ORIGIN
+        value: https://your-project.vercel.app
+        scope: RUN_TIME
+        type: general
+
+databases:
+  - name: db
+    engine: PG
+    production: true
