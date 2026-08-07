@@ -6,6 +6,7 @@
     "dev": "concurrently -k -n BACKEND,FRONTEND -c blue,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",
     "dev:frontend": "next dev frontend --webpack --hostname 127.0.0.1 --port 3002",
     "dev:backend": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/src/server.js",
+    "postinstall": "prisma generate --schema backend/prisma/schema.prisma",
     "build": "next build frontend --webpack",
     "start": "concurrently -k -n BACKEND,FRONTEND \"npm run start:backend\" \"npm run start:frontend\"",
     "start:frontend": "next start frontend --hostname 127.0.0.1 --port 3002",
@@ -26,9 +27,7 @@
     "express": "^5.2.1",
     "next": "^16.3.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
-  },
-  "devDependencies": {
+    "react-dom": "^19.2.8",
     "prisma": "^6.19.0"
   },
   "prisma": {
