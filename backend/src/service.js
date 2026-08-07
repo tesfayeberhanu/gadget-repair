@@ -1,0 +1,117 @@
+import { prisma } from './prisma.js';
+import { requireRole } from './auth.js';
+
+const navigation = {
+  Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team'],
+  Technician: ['Overview', 'Repairs', 'Inventory', 'Customers'],
+  'Front Desk': ['Overview', 'New Intake', 'Repairs', 'Point of Sale', 'Customers'],
+};
+const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
+const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
+const statusLabel = { PENDING: 'Pending', IN_PROGRESS: 'In Progress', WAITING_FOR_PARTS: 'Waiting for Parts', COMPLETED: 'Completed', DELIVERED: 'Delivered' };
+const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
+const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
+
+function serializeRepair(ticket, role) {
+  const name = ticket.customerName;
+  return {
+    id: ticket.ticketNumber,
+    recordId: ticket.id,
+    customer: name,
+    phone: ticket.customerPhone,
+    imei: ticket.serialOrImei,
+    device: ticket.deviceModel,
+    issue: ticket.reportedIssue,
+    condition: ticket.physicalCondition,
+    status: statusLabel[ticket.status],
+    tech: ticket.assignedTech?.name || 'Unassigned',
+    due: ticket.status === 'COMPLETED' ? 'Ready for pickup' : 'Not scheduled',
+    total: role === 'Technician' ? null : Number(ticket.estimatedCost),
+    avatar: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
+  };
+}
+
+function serializePart(part, role) {
+  const base = { id: part.id, sku: part.sku, name: part.name, device: part.compatibleDevices || 'Universal', stock: part.stockQty, min: part.minimumStockQty };
+  return role === 'Admin' ? { ...base, cost: Number(part.costPrice), price: Number(part.retailPrice) } : base;
+}
+
+function serializeSale(sale) {
+  return { id: `#SL-${sale.id.slice(0, 6).toUpperCase()}`, customer: sale.ticket?.customerName || 'Retail customer', item: sale.ticket ? `${sale.ticket.deviceModel} repair` : 'Retail sale', method: methodLabel[sale.paymentMethod], amount: Number(sale.totalAmount), status: paymentLabel[sale.paymentStatus] };
+}
+
+async function actorFor(role, client = prisma) {
+  const actor = await client.user.findFirst({ where: { role: dbRole[role] }, orderBy: { createdAt: 'asc' } });
+  if (!actor) throw new Error(`No seeded ${role} user exists`);
+  return actor;
+}
+
+export async function getWorkspace(role) {
+  const [tickets, parts, sales, team] = await Promise.all([
+    prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
+    prisma.part.findMany({ orderBy: { name: 'asc' } }),
+    role === 'Technician' ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
+    role === 'Admin' ? prisma.user.findMany({ select: { id: true, name: true, role: true }, orderBy: { createdAt: 'asc' } }) : [],
+  ]);
+
+  const repairs = tickets.map((ticket) => serializeRepair(ticket, role));
+  const inventory = parts.map((part) => serializePart(part, role));
+  const active = tickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status));
+  const paidRevenue = sales.filter((sale) => sale.paymentStatus === 'PAID').reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
+  const dashboard = role === 'Technician'
+    ? { assignedPending: active.filter((ticket) => ticket.assignedTechId).length, inProgress: tickets.filter((ticket) => ticket.status === 'IN_PROGRESS').length, completedToday: tickets.filter((ticket) => ticket.status === 'COMPLETED').length }
+    : role === 'Front Desk'
+      ? { intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, dailySales: paidRevenue }
+      : { totalRevenue: paidRevenue, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length, grossMargin: 54.2, technicianYield: 6.4 };
+
+  return {
+    role,
+    navigation: navigation[role],
+    dashboard,
+    repairs,
+    inventory,
+    sales: sales.map(serializeSale),
+    team: team.map((user) => ({ id: user.id, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), description: user.role === 'ADMIN' ? 'Full system access' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
+  };
+}
+
+export async function createRepair(role, input) {
+  requireRole(role, ['Admin', 'Front Desk']);
+  const required = ['customer', 'phone', 'device', 'imei', 'issue'];
+  if (required.some((field) => !String(input[field] || '').trim())) throw new Error('Missing required intake information');
+
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(role, tx);
+    const latest = await tx.repairTicket.findFirst({ orderBy: { ticketNumber: 'desc' }, select: { ticketNumber: true } });
+    const sequence = Math.max(0, Number(latest?.ticketNumber.split('-').pop()) || 0) + 1;
+    const ticket = await tx.repairTicket.create({
+      data: {
+        ticketNumber: `REP-${new Date().getFullYear()}-${String(sequence).padStart(4, '0')}`,
+        customerName: String(input.customer).trim(), customerPhone: String(input.phone).trim(), deviceModel: String(input.device).trim(),
+        serialOrImei: String(input.imei).trim(), physicalCondition: input.condition || null, reportedIssue: String(input.issue).trim(),
+        estimatedCost: Math.max(0, Number(input.estimate) || 0), createdById: actor.id,
+      },
+      include: { assignedTech: { select: { name: true } } },
+    });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.created', entity: 'RepairTicket', entityId: ticket.id } });
+    return serializeRepair(ticket, role);
+  }, { isolationLevel: 'Serializable' });
+}
+
+export async function advanceRepair(role, ticketNumber) {
+  requireRole(role, ['Admin', 'Technician']);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(role, tx);
+    const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber }, include: { assignedTech: { select: { name: true } } } });
+    if (!ticket) throw new Error('NOT_FOUND');
+    const index = statusOrder.indexOf(ticket.status);
+    if (index < 0 || index === statusOrder.length - 1) throw new Error('INVALID_STATUS');
+    const updated = await tx.repairTicket.update({
+      where: { id: ticket.id },
+      data: { status: statusOrder[index + 1], ...(ticket.status === 'PENDING' && role === 'Technician' ? { assignedTechId: actor.id } : {}) },
+      include: { assignedTech: { select: { name: true } } },
+    });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.status_changed', entity: 'RepairTicket', entityId: ticket.id } });
+    return serializeRepair(updated, role);
+  });
+}

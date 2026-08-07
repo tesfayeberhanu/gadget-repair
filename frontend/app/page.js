@@ -1,287 +1,96 @@
-import './globals.css';
+'use client';
 
-const brands = ['LABTECH', 'GADGET', 'ACCESSORY', 'REPAIR', 'CORE'];
+import { useEffect, useMemo, useState } from 'react';
+import AppSidebar from './components/AppSidebar';
+import Topbar from './components/Topbar';
+import Overview from './components/Overview';
+import IntakeModal from './components/IntakeModal';
+import { RepairsView, InventoryView, SalesView, CustomersView, ReportsView, TeamView } from './components/ModuleViews';
 
-const cards = [
-  {
-    title: 'Screen Repair',
-    description: 'Crisp displays restored with premium glass and fast service.',
-    tag: 'Popular',
-  },
-  {
-    title: 'Data Recovery',
-    description: 'Recover lost files quickly from phones, drives, and PCs.',
-    tag: 'Secure',
-  },
-  {
-    title: 'Laptop Cleaning',
-    description: 'Pro cleaning and thermal tuning for reliable performance.',
-    tag: 'Pro',
-  },
-];
-
-const repairFeatures = [
-  { title: 'Quick, Safe Relocation', label: 'Repair', description: 'Secure transport and careful handling for every device.' },
-  { title: 'Expert Diagnostics', label: 'Service', description: 'Identify issues fast with precision diagnostics.' },
-  { title: 'Premium Repair', label: 'Quality', description: 'Top-grade components and expert craftsmanship.' },
-  { title: 'Aftercare Support', label: 'Support', description: 'Follow-up support with warranties and guidance.' },
-];
-
-const sampleMaterials = [
-  {
-    icon: '🔬',
-    title: 'Precision Microscope',
-    description: 'High-magnification inspection for tiny components and board-level diagnostics.',
-  },
-  {
-    icon: '📱',
-    title: 'Phone Repair Kit',
-    description: 'Expert tools for phones, screens, and battery swaps with premium care.',
-  },
-  {
-    icon: '💻',
-    title: 'Tablet & Laptop Parts',
-    description: 'Quality replacement parts for tablets, laptops, and hybrid devices.',
-  },
-];
-
-const milestoneItems = [
-  { name: 'Expert Technicians', description: 'Certified experts working with the latest tools.' },
-  { name: 'Satisfaction Guarantee', description: 'High-quality repairs backed by trust.' },
-  { name: 'Transparent Pricing', description: 'Clear quotes with no surprise fees.' },
-  { name: 'Broad Device Support', description: 'Phones, laptops, tablets, consoles, and more.' },
-];
-
-const reviews = [
-  { name: 'ጆርዳን ወልከር', quote: 'አሪፍ አገልግሎት፣ ስልኬ እንደ አዲስ ሆነ።', rating: '5.0' },
-  { name: 'ማያ ፓቴል', quote: 'ፈጣን እና ምቹ የሆነ ድጋፍ — በየደረጃው ደስ አለኝ።', rating: '5.0' },
-  { name: 'ኖአ ኪም', quote: 'ታማኝ ጥራት ጥራት እና ግልጽ ዋጋ፣ ፈጣን አስተናጋጅም ነው።', rating: '4.9' },
-];
+async function apiRequest(path, role, options = {}) {
+  const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
+  const response = await fetch(`${apiBase}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', 'x-user-role': role, ...options.headers },
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
 
 export default function HomePage() {
-  return (
-    <main className="page-wrap">
-      <header className="hero-section">
-        <div className="hero-nav">
-          <div className="brand-logo">I-Fix</div>
-          <input id="nav-toggle" type="checkbox" className="nav-toggle-input" />
-          <label htmlFor="nav-toggle" className="nav-toggle" aria-label="Toggle menu">
-            <span></span>
-            <span></span>
-            <span></span>
-          </label>
-          <nav className="nav-links">
-            <a href="#services">Services</a>
-            <a href="#repair">Repair</a>
-            <a href="#milestone">About</a>
-            <a href="#reviews">Reviews</a>
-            <a href="#blog">Blog</a>
-          </nav>
-          <div className="hero-language">
-            <div className="language-select">
-              <label htmlFor="language">ቋንቋ</label>
-              <select id="language" name="language" defaultValue="en">
-                <option value="en">EN</option>
-                <option value="am">አማ</option>
-              </select>
-            </div>
-          </div>
-        </div>
+  const [role, setRole] = useState('Admin');
+  const [active, setActive] = useState('Overview');
+  const [workspace, setWorkspace] = useState(null);
+  const [search, setSearch] = useState('');
+  const [showIntake, setShowIntake] = useState(false);
+  const [toast, setToast] = useState('');
+  const [error, setError] = useState('');
 
-        <div className="hero-grid">
-          <div className="hero-copy-panel">
-            <p className="eyebrow">Gadget Repair</p>
-            <h1>Bright Solutions for Dark Problems</h1>
-            <p className="hero-copy">
-              Premium device repair with expert technicians, fast delivery, and transparent service. Trust us to restore your gadgets with care.
-            </p>
-            
-            <div className="hero-stats">
-              <div>
-                <strong>15+</strong>
-                <span>Years experience</span>
-              </div>
-              <div>
-                <strong>24h</strong>
-                <span>Fast diagnostics</span>
-              </div>
-              <div>
-                <strong>12m</strong>
-                <span>Warranty</span>
-              </div>
-            </div>
-          </div>
+  const notify = (message, duration = 2200) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), duration);
+  };
 
-          <div className="hero-image-panel">
-            <div className="hero-image-card">
-              <div className="hero-tag">Trusted Repair</div>
-              <div className="hero-image-content">
-                <div className="hero-image-label">Professional device inspection</div>
-                <div className="hero-image-meta">Premium treatment, fast turnaround.</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+  const loadWorkspace = async (selectedRole = role) => {
+    setError('');
+    try { setWorkspace(await apiRequest('/api/workspace', selectedRole)); }
+    catch (requestError) { setError(requestError.message); }
+  };
 
-      <div className="action-strip centered-call-btn">
-        <a href="#contact" className="action-cta call-button">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5v14M5 12h14" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          <span>Book a Call</span>
-        </a>
-      </div>
+  useEffect(() => { loadWorkspace(role); }, [role]);
 
-      <section className="brand-strip">
-        {brands.map((brand) => (
-          <span key={brand}>{brand}</span>
-        ))}
-      </section>
+  const repairs = workspace?.repairs || [];
+  const filteredRepairs = useMemo(() => {
+    const query = search.toLowerCase();
+    return repairs.filter((repair) => Object.values(repair).join(' ').toLowerCase().includes(query));
+  }, [repairs, search]);
 
-      <section id="services" className="section info-section light-section">
-        <div className="info-grid">
-          <div className="info-copy">
-            <p className="eyebrow">Your trusted partner for gadget repairs</p>
-            <h2>Fast, accurate repairs with elite service and support.</h2>
-            <p>
-              We help customers across brands and device types with fast diagnostics, genuine parts, and premium service.
-            </p>
-          </div>
-          <div className="info-cards">
-            <article className="info-card">
-              <h3>Device Repair</h3>
-              <p>Screen replacement, battery upgrades, and precision repairs.</p>
-            </article>
-            <article className="info-card">
-              <h3>Data Security</h3>
-              <p>Safe retrieval and secure handling for damaged devices.</p>
-            </article>
-            <article className="info-card">
-              <h3>Fast Delivery</h3>
-              <p>Express service and same-day pickup options available.</p>
-            </article>
-          </div>
-        </div>
-      </section>
+  const switchRole = (nextRole) => {
+    setRole(nextRole);
+    setActive('Overview');
+    notify(`Loading ${nextRole} access`);
+  };
 
-      <section id="repair" className="section feature-section light-section">
-        <div className="section-heading">
-          <p className="eyebrow">Reliable Repairs</p>
-          <h2>Explore our repair essentials.</h2>
-        </div>
-        <div className="feature-grid">
-          {cards.map((card) => (
-            <article key={card.title} className="feature-card">
-              <div className="feature-lead">
-                <span>{card.tag}</span>
-                <h3>{card.title}</h3>
-              </div>
-              <p>{card.description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+  const openIntake = () => { setShowIntake(true); setActive('New Intake'); };
+  const closeIntake = () => { setShowIntake(false); setActive('Overview'); };
 
-      <section className="section gallery-section light-section">
-        <div className="section-heading">
-          <p className="eyebrow">Explore Our Repair Section</p>
-          <h2>Solutions designed for every device.</h2>
-        </div>
-        <div className="gallery-grid">
-          {repairFeatures.map((feature) => (
-            <article key={feature.title} className="gallery-card">
-              <div className="gallery-card-top">
-                <span>{feature.label}</span>
-              </div>
-              <h3>{feature.title}</h3>
-              <p>{feature.description}</p>
-              <a href="#contact" className="link-button">Request Service</a>
-            </article>
-          ))}
-        </div>
-      </section>
+  const createIntake = async (event) => {
+    event.preventDefault();
+    const form = Object.fromEntries(new FormData(event.currentTarget));
+    try {
+      await apiRequest('/api/repairs', role, { method: 'POST', body: JSON.stringify(form) });
+      await loadWorkspace();
+      setShowIntake(false);
+      setActive('Repairs');
+      notify('Ticket created by server · barcode receipt ready', 2600);
+    } catch (requestError) { setError(requestError.message); }
+  };
 
-      <section className="section materials-section light-section">
-        <div className="section-heading">
-          <p className="eyebrow">Repair Materials</p>
-          <h2>Sample tools and devices we work with.</h2>
-        </div>
-        <div className="materials-grid">
-          {sampleMaterials.map((material) => (
-            <article key={material.title} className="material-card">
-              <div className="material-icon">{material.icon}</div>
-              <h3>{material.title}</h3>
-              <p>{material.description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+  const updateStatus = async (id) => {
+    try {
+      await apiRequest('/api/repairs', role, { method: 'PATCH', body: JSON.stringify({ action: 'advance', id }) });
+      await loadWorkspace();
+      notify('Ticket status updated and audit logged by server');
+    } catch (requestError) { setError(requestError.message); }
+  };
 
-      <section id="milestone" className="section milestone-section light-section">
-        <div className="milestone-grid">
-          <div className="milestone-visual">
-            <div className="milestone-banner">Ultimate Shield for Your Device</div>
-            <div className="milestone-boxes">
-              <div>Speaker Repair</div>
-              <div>Battery & Power</div>
-            </div>
-          </div>
-          <div className="milestone-copy">
-            <p className="eyebrow">Achieved a milestone in repairing services</p>
-            <h2>Expert craftsmanship, precise results.</h2>
-            <div className="milestone-list">
-              {milestoneItems.map((item) => (
-                <div key={item.name} className="milestone-item">
-                  <strong>{item.name}</strong>
-                  <p>{item.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
+  if (!workspace && !error) return <div className="loading-screen"><span className="loader"></span><p>Loading iFixLab251 workspace…</p></div>;
 
-      <section id="reviews" className="section review-section light-section">
-        <div className="section-heading">
-          <p className="eyebrow">Client Reviews</p>
-          <h2>Customers love our premium repair experience.</h2>
-        </div>
-        <div className="review-grid">
-          {reviews.map((review) => (
-            <article key={review.name} className="review-card">
-              <p>{review.quote}</p>
-              <div className="review-meta">
-                <strong>{review.name}</strong>
-                <span>{review.rating} ★</span>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
+  const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], setActive, openIntake };
+  const views = {
+    Overview: <Overview {...shared} />,
+    Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} />,
+    Inventory: <InventoryView role={role} parts={shared.inventory} />,
+    'Point of Sale': <SalesView sales={shared.sales} notify={notify} />,
+    Customers: <CustomersView repairs={repairs} />,
+    Reports: <ReportsView dashboard={shared.dashboard} />,
+    Team: <TeamView team={shared.team} />,
+  };
 
-      <footer className="site-footer light-section">
-        <div className="footer-top">
-          <div>
-            <div className="brand-logo footer-logo">I-fixlab</div>
-            <p>Premium gadget repair services with fast delivery and expert support.</p>
-          </div>
-          <div className="footer-links">
-            <div>
-              <strong>Services</strong>
-              <a href="#services">Repairs</a>
-              <a href="#repair">Diagnostics</a>
-            </div>
-            <div>
-              <strong>Company</strong>
-              <a href="#milestone">About</a>
-              <a href="#contact">Contact</a>
-            </div>
-          </div>
-        </div>
-        <div className="footer-bottom">
-          <span>© 2026 I-fixlab. All rights reserved.</span>
-          <span>Designed for premium gadget owners.</span>
-        </div>
-      </footer>
-    </main>
-  );
+  return <div className="app-shell">
+    <AppSidebar role={role} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} />
+    <main className="main-area"><Topbar role={role} search={search} setSearch={setSearch} switchRole={switchRole} openIntake={openIntake}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
+    {showIntake && <IntakeModal close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
+  </div>;
 }

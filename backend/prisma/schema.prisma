@@ -1,0 +1,124 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  TECHNICIAN
+  FRONT_DESK
+}
+
+enum TicketStatus {
+  PENDING
+  IN_PROGRESS
+  WAITING_FOR_PARTS
+  COMPLETED
+  DELIVERED
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  DIGITAL_TRANSFER
+}
+
+enum PaymentStatus {
+  PAID
+  PENDING
+  REFUNDED
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(FRONT_DESK)
+  createdAt DateTime @default(now())
+
+  createdTickets  RepairTicket[] @relation("CreatedBy")
+  assignedTickets RepairTicket[] @relation("AssignedTech")
+  sales           Sale[]
+  auditLogs       AuditLog[]
+}
+
+model RepairTicket {
+  id             String       @id @default(uuid())
+  ticketNumber   String       @unique
+  customerName   String
+  customerPhone  String
+  deviceModel    String
+  serialOrImei   String?
+  physicalCondition String?
+  reportedIssue  String
+  status         TicketStatus @default(PENDING)
+  estimatedCost  Decimal      @db.Decimal(10, 2)
+
+  createdById    String
+  createdBy      User         @relation("CreatedBy", fields: [createdById], references: [id])
+
+  assignedTechId String?
+  assignedTech   User?        @relation("AssignedTech", fields: [assignedTechId], references: [id])
+
+  usedParts      TicketPart[]
+  sales          Sale[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([status])
+  @@index([customerPhone])
+  @@index([serialOrImei])
+}
+
+model Part {
+  id                String       @id @default(uuid())
+  sku               String       @unique
+  name              String
+  compatibleDevices String?
+  stockQty          Int
+  minimumStockQty   Int          @default(5)
+  costPrice         Decimal      @db.Decimal(10, 2)
+  retailPrice       Decimal      @db.Decimal(10, 2)
+  ticketParts       TicketPart[]
+}
+
+model TicketPart {
+  id       String       @id @default(uuid())
+  ticketId String
+  ticket   RepairTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  partId   String
+  part     Part         @relation(fields: [partId], references: [id])
+  quantity Int          @default(1)
+
+  @@unique([ticketId, partId])
+}
+
+model Sale {
+  id            String         @id @default(uuid())
+  ticketId      String?
+  ticket        RepairTicket?  @relation(fields: [ticketId], references: [id])
+  totalAmount   Decimal        @db.Decimal(10, 2)
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus  @default(PENDING)
+  processedBy   String
+  user          User           @relation(fields: [processedBy], references: [id])
+  createdAt     DateTime       @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  timestamp DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([timestamp])
+}

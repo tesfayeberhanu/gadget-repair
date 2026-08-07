@@ -1,6 +1,9 @@
-# Gadget Repair
+# iFixLab251 — Gadget Repair Operations
 
-A new Next.js e-commerce website scaffold for a gadget repair store.
+A responsive, role-aware Next.js operations dashboard for a gadget repair shop.
+The current prototype includes Admin, Technician, and Front Desk views; repair
+intake and ticket lifecycle controls; inventory visibility rules; POS views;
+customer search; and admin reporting.
 
 ## Getting started
 
@@ -16,18 +19,34 @@ A new Next.js e-commerce website scaffold for a gadget repair store.
    ```bash
    npm run dev
    ```
-4. Open http://localhost:3000 in your browser.
+4. Open http://localhost:3002 in your browser.
+
+## PostgreSQL setup
+
+1. Copy `.env.example` to `.env` and set `DATABASE_URL` to your PostgreSQL database.
+2. Run `npm run db:generate`.
+3. On this local Homebrew setup, run `npm run db:init:local` once. On other
+   environments, use `npm run db:migrate -- --name init`.
+4. Run `npm run db:seed`.
+
+The seed creates Admin, Technician, and Front Desk development users. Replace the
+seed passwords and connect a real session provider before deployment.
 
 ## Project structure
 
-- `app/page.js` — home page with product services and featured repair items
-- `app/layout.js` — root layout and metadata
-- `app/globals.css` — base styles
-- `next.config.js` — Next.js configuration
+- `frontend/app/page.js` — role-aware dashboard and interactive workflows
+- `frontend/app/components/` — frontend-only feature views and shared UI
+- `backend/src/` — standalone HTTP API, RBAC, and business services
+- `backend/prisma/` — PostgreSQL schema and seed
+- `frontend/app/layout.js` — root layout and metadata
+- `frontend/app/globals.css` — responsive dashboard styling
+- `frontend/next.config.js` — Next.js configuration
 - `package.json` — scripts and dependencies
 
-## Next steps
+## Implementation boundary
 
-- Add product detail pages and cart functionality
-- Integrate a backend or e-commerce API for orders
-- Add authentication or user accounts
+The UI loads its workspace from `http://127.0.0.1:4000/api/workspace` and sends
+repair mutations to the standalone backend. Business rules, role filtering,
+dashboard calculations, status transitions, Prisma access, and audit events live
+exclusively under `backend/`. Real session authentication and receipt delivery
+remain production integrations.

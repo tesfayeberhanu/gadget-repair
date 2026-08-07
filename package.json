@@ -3,14 +3,34 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev frontend --hostname 127.0.0.1 --port 3001",
-    "build": "next build frontend",
-    "start": "next start frontend --hostname 127.0.0.1 --port 3001",
-    "lint": "next lint frontend"
+    "dev": "concurrently -k -n BACKEND,FRONTEND -c blue,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:frontend": "next dev frontend --webpack --hostname 127.0.0.1 --port 3002",
+    "dev:backend": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/src/server.js",
+    "build": "next build frontend --webpack",
+    "start": "concurrently -k -n BACKEND,FRONTEND \"npm run start:backend\" \"npm run start:frontend\"",
+    "start:frontend": "next start frontend --hostname 127.0.0.1 --port 3002",
+    "start:backend": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/src/server.js",
+    "lint": "next lint frontend",
+    "db:generate": "prisma generate --schema backend/prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema backend/prisma/schema.prisma",
+    "db:init:local": "/opt/homebrew/opt/postgresql@16/bin/psql -v ON_ERROR_STOP=1 -d ifixlab251 -f backend/prisma/migrations/20260804220000_init/migration.sql",
+    "db:seed": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/prisma/seed.js",
+    "db:studio": "prisma studio --schema backend/prisma/schema.prisma"
   },
   "dependencies": {
-    "next": "14.2.5",
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+    "@prisma/client": "^6.19.0",
+    "concurrently": "^10.0.4",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "next": "^16.3.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.0"
+  },
+  "prisma": {
+    "seed": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/prisma/seed.js"
   }
 }

@@ -1,8 +1,8 @@
 import './globals.css';
 
 export const metadata = {
-  title: 'Gadget Repair',
-  description: 'Fast gadget repair and device servicing',
+  title: 'iFixLab251 | Repair Operations',
+  description: 'Role-aware repair shop operations, inventory, billing, and reporting',
 };
 
 export default function RootLayout({ children }) {

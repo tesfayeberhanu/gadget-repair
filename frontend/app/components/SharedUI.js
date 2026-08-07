@@ -1,0 +1,21 @@
+export const money = (value) => `$${Number(value || 0).toLocaleString()}`;
+export function PageHead({ eyebrow, title, children }) { return <div className="page-head"><div><p>{eyebrow}</p><h1>{title}</h1></div>{children}</div>; }
+export function Metric({ icon, tone, label, value, meta }) { return <article className="metric card"><div className={`metric-icon ${tone}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></article>; }
+export function Status({ value }) { return <span className={`status ${value.toLowerCase().replaceAll(' ', '-')}`}><i></i>{value}</span>; }
+
+export function RevenueCard() {
+  return <section className="card panel revenue"><div className="panel-title"><div><h2>Revenue overview</h2><p>Revenue performance over the last 6 months</p></div><button>⋮</button></div><div className="chart"><div className="y-axis"><span>$12k</span><span>$8k</span><span>$4k</span><span>$0</span></div><svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-label="Revenue trend"><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#4f46e5" stopOpacity=".28"/><stop offset="1" stopColor="#4f46e5" stopOpacity="0"/></linearGradient></defs><path className="area" d="M0 150 C70 135,90 155,140 117 S230 130,280 90 S365 105,420 58 S515 76,600 28 L600 190 L0 190Z"/><path className="line" d="M0 150 C70 135,90 155,140 117 S230 130,280 90 S365 105,420 58 S515 76,600 28"/></svg><div className="months"><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span></div></div></section>;
+}
+
+export function StatusCard({ repairs }) {
+  const groups = ['Pending', 'In Progress', 'Waiting for Parts', 'Completed'];
+  return <section className="card panel"><div className="panel-title"><div><h2>Repair status</h2><p>Current workload breakdown</p></div></div><div className="donut-wrap"><div className="donut"><span><b>{repairs.length + 20}</b>total</span></div><div className="legend">{groups.map((group, index) => <div key={group}><i className={`dot d${index}`}></i><span>{group}</span><strong>{[8, 6, 4, 6][index]}</strong></div>)}</div></div></section>;
+}
+
+export function QueueCard({ repairs, role, title = 'Recent repairs', onView }) {
+  return <section className="card table-card"><div className="panel-title"><div><h2>{title}</h2><p>{role === 'Technician' ? 'Repairs assigned to you' : 'Latest ticket activity across the shop'}</p></div><button className="link" onClick={onView}>View all repairs →</button></div><div className="table-scroll"><table><thead><tr><th>Ticket</th><th>Customer</th><th>Device</th><th>Status</th><th>Technician</th><th>Due</th></tr></thead><tbody>{repairs.length ? repairs.map((repair) => <tr key={repair.id}><td><strong>{repair.id}</strong></td><td><div className="customer"><span className="avatar small">{repair.avatar}</span><div><strong>{repair.customer}</strong><small>{repair.phone}</small></div></div></td><td><strong>{repair.device}</strong><small>{repair.issue}</small></td><td><Status value={repair.status}/></td><td>{repair.tech}</td><td>{repair.due}</td></tr>) : <tr><td colSpan="6" className="empty">No matching repairs found</td></tr>}</tbody></table></div></section>;
+}
+
+export function SalesCard({ sales }) { return <section className="card panel"><div className="panel-title"><div><h2>Recent sales</h2><p>Latest completed transactions</p></div><button className="link">View all →</button></div><div className="mini-list">{sales.map((sale) => <div key={sale.id}><span className="sale-icon">▤</span><div><strong>{sale.customer}</strong><small>{sale.item}</small></div><b>{money(sale.amount)}</b></div>)}</div></section>; }
+
+export function LowStockCard({ parts, onView }) { return <section className="card panel"><div className="panel-title"><div><h2>Low stock alerts</h2><p>Items that need your attention</p></div><button className="link" onClick={onView}>View inventory →</button></div><div className="mini-list">{parts.filter((part) => part.stock <= part.min).map((part) => <div key={part.sku}><span className="part-icon">□</span><div><strong>{part.name}</strong><small>{part.sku}</small></div><b className="stock-low">{part.stock} left</b></div>)}</div></section>; }
