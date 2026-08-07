@@ -29,9 +29,8 @@ services:
         value: ${db.DATABASE_URL}
         scope: RUN_AND_BUILD_TIME
         type: general
-      # Replace this value with the exact production Vercel origin before deploying.
       - key: FRONTEND_ORIGIN
-        value: https://your-project.vercel.app
+        value: https://gadget-repair-r16v-mocha.vercel.app
         scope: RUN_TIME
         type: general
 
