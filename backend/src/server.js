@@ -8,10 +8,11 @@ const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3002')
   .split(',')
   .map((origin) => origin.trim().replace(/\/$/, ''))
   .filter(Boolean);
+const vercelPreviewPattern = /^https:\/\/gadget-repair-r16v-[a-z0-9-]+\.vercel\.app$/;
 
 const corsHeaders = (request) => {
   const origin = request.headers.origin?.replace(/\/$/, '');
-  return origin && allowedOrigins.includes(origin)
+  return origin && (allowedOrigins.includes(origin) || vercelPreviewPattern.test(origin))
     ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' }
     : { Vary: 'Origin' };
 };
