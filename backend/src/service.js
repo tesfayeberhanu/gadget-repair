@@ -4,7 +4,7 @@ import { createSession, hashPassword, requireRole, verifyPassword } from './auth
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team'],
   Technician: ['Overview', 'Repairs', 'Inventory'],
-  'Front Desk': ['Overview', 'New Intake', 'Repairs', 'Point of Sale', 'Customers'],
+  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
@@ -56,11 +56,12 @@ export async function login(email, password) {
 
 export async function getWorkspace(role) {
   const actor = role === 'Technician' ? await actorFor(role) : null;
-  const [tickets, parts, sales, team] = await Promise.all([
+  const [tickets, parts, sales, team, appointments] = await Promise.all([
     prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
     role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true }, orderBy: { createdAt: 'asc' } }) : [],
+    role === 'Front Desk' ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
   ]);
 
   const visibleTickets = role === 'Technician'
@@ -83,6 +84,7 @@ export async function getWorkspace(role) {
     repairs,
     inventory,
     sales: sales.map(serializeSale),
+    appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: item.status.replace('_', ' ').toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase()) })),
     team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
   };
 }
@@ -113,6 +115,28 @@ export async function deactivateStaff(role, actorId, id) {
     prisma.auditLog.create({ data: { userId: actorId, action: 'staff.deactivated', entity: 'User', entityId: id } }),
   ]);
   return { success: true };
+}
+
+const normalizePhone = (value) => String(value || '').replace(/[^0-9+]/g, '');
+
+export async function trackRepair(ticketNumber, phone) {
+  const ticket = String(ticketNumber || '').trim().toUpperCase();
+  const normalizedPhone = normalizePhone(phone);
+  if (!ticket || normalizedPhone.length < 7) throw new Error('INVALID_TRACKING');
+  const repair = await prisma.repairTicket.findUnique({ where: { ticketNumber: ticket }, include: { assignedTech: { select: { name: true } } } });
+  if (!repair || normalizePhone(repair.customerPhone) !== normalizedPhone) throw new Error('TRACKING_NOT_FOUND');
+  return { ticketNumber: repair.ticketNumber, device: repair.deviceModel, status: statusLabel[repair.status], technician: repair.assignedTech?.name || 'Awaiting assignment', receivedAt: repair.createdAt, updatedAt: repair.updatedAt };
+}
+
+export async function requestAppointment(input) {
+  const customerName = String(input.customerName || '').trim();
+  const customerPhone = normalizePhone(input.customerPhone);
+  const device = String(input.device || '').trim();
+  const issue = String(input.issue || '').trim();
+  const preferredDate = new Date(input.preferredDate);
+  if (!customerName || customerPhone.length < 7 || !device || !issue || Number.isNaN(preferredDate.getTime()) || preferredDate <= new Date()) throw new Error('INVALID_APPOINTMENT');
+  const appointment = await prisma.appointment.create({ data: { customerName, customerPhone, device, issue, preferredDate } });
+  return { reference: appointment.id.slice(0, 8).toUpperCase(), status: 'Requested', preferredDate: appointment.preferredDate };
 }
 
 export async function createRepair(role, input) {

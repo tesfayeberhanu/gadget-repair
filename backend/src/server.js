@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { getSession } from './auth.js';
-import { advanceRepair, createRepair, createStaff, deactivateStaff, getWorkspace, login } from './service.js';
+import { advanceRepair, createRepair, createStaff, deactivateStaff, getWorkspace, login, requestAppointment, trackRepair } from './service.js';
 
 const port = Number(process.env.PORT || process.env.BACKEND_PORT || 4000);
 const host = process.env.HOST || '0.0.0.0';
@@ -54,6 +54,8 @@ const server = createServer(async (request, response) => {
       const body = await readJson(request);
       return send(request, response, 200, await login(body.email, body.password));
     }
+    if (request.method === 'GET' && url.pathname === '/api/public/track') return send(request, response, 200, await trackRepair(url.searchParams.get('ticket'), url.searchParams.get('phone')));
+    if (request.method === 'POST' && url.pathname === '/api/public/appointments') return send(request, response, 201, await requestAppointment(await readJson(request)));
     if (request.method === 'GET' && url.pathname === '/api/workspace') {
       const session = getSession(requestAdapter(request));
       return send(request, response, 200, { ...(await getWorkspace(session.role)), user: { name: session.name, role: session.role } });
@@ -77,7 +79,7 @@ const server = createServer(async (request, response) => {
   } catch (error) {
     const known = {
       UNAUTHORIZED: [401, 'Please sign in'], INVALID_CREDENTIALS: [401, 'Invalid email or password'], AUTH_NOT_CONFIGURED: [503, 'Authentication is not configured'], FORBIDDEN: [403, 'You do not have permission for this action'],
-      NOT_FOUND: [404, 'Record not found'], INVALID_STATUS: [400, 'Invalid ticket status transition'], INVALID_STAFF: [400, 'Name, valid email and a password of at least 10 characters are required'], INVALID_STAFF_ROLE: [400, 'Only Technician and Front Desk accounts can be created'], PROTECTED_ADMIN: [400, 'The Admin account cannot be deactivated'],
+      NOT_FOUND: [404, 'Record not found'], INVALID_STATUS: [400, 'Invalid ticket status transition'], INVALID_STAFF: [400, 'Name, valid email and a password of at least 10 characters are required'], INVALID_STAFF_ROLE: [400, 'Only Technician and Front Desk accounts can be created'], PROTECTED_ADMIN: [400, 'The Admin account cannot be deactivated'], INVALID_TRACKING: [400, 'Ticket number and matching phone number are required'], TRACKING_NOT_FOUND: [404, 'No matching repair was found'], INVALID_APPOINTMENT: [400, 'Complete all appointment fields and choose a future date'],
     };
     const [status, message] = known[error.message] || [500, process.env.NODE_ENV === 'production' ? 'Unexpected server error' : error.message];
     return send(request, response, status, { error: message });

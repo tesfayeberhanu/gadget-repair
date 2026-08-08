@@ -33,6 +33,12 @@ enum PaymentStatus {
   REFUNDED
 }
 
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  CANCELLED
+}
+
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -122,4 +128,18 @@ model AuditLog {
 
   @@index([entity, entityId])
   @@index([timestamp])
+}
+
+model Appointment {
+  id            String            @id @default(uuid())
+  customerName  String
+  customerPhone String
+  device        String
+  issue         String
+  preferredDate DateTime
+  status        AppointmentStatus @default(REQUESTED)
+  createdAt     DateTime          @default(now())
+
+  @@index([preferredDate])
+  @@index([customerPhone])
 }

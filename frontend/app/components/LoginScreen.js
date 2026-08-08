@@ -10,5 +10,6 @@ export default function LoginScreen({ login, error }) {
     <label>Email<input name="email" type="email" autoComplete="username" required /></label>
     <label>Password<input name="password" type="password" autoComplete="current-password" required /></label>
     <button className="primary" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+    <a className="customer-portal-link" href="/customer">Customer website: track a repair or book a visit →</a>
   </form></main>;
 }

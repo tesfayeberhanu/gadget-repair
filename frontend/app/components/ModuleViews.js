@@ -32,6 +32,10 @@ export function CustomersView({ repairs }) {
   return <><PageHead eyebrow="CUSTOMER DIRECTORY" title="Customers"><span className="head-count">{repairs.length} profiles</span></PageHead><div className="customer-grid">{repairs.map((repair) => <article className="card customer-profile" key={repair.id}><span className="avatar large">{repair.avatar}</span><div><h3>{repair.customer}</h3><p>{repair.phone}</p><small>Latest: {repair.device}</small></div><Status value={repair.status}/></article>)}</div></>;
 }
 
+export function AppointmentsView({ appointments }) {
+  return <><PageHead eyebrow="FRONT DESK" title="Appointment requests"><span className="head-count">{appointments.length} requests</span></PageHead><section className="card table-card full-table"><div className="table-scroll"><table><thead><tr><th>Reference</th><th>Customer</th><th>Device / issue</th><th>Preferred time</th><th>Status</th></tr></thead><tbody>{appointments.length ? appointments.map((item) => <tr key={item.id}><td><strong>#{item.reference}</strong></td><td><strong>{item.customer}</strong><small>{item.phone}</small></td><td><strong>{item.device}</strong><small>{item.issue}</small></td><td>{new Date(item.preferredDate).toLocaleString()}</td><td><Status value={item.status}/></td></tr>) : <tr><td colSpan="5" className="empty">No appointment requests yet.</td></tr>}</tbody></table></div></section></>;
+}
+
 export function ReportsView({ dashboard }) {
   return <><PageHead eyebrow="ADMIN ONLY" title="Reports & analytics"><select className="period"><option>This month</option><option>This year</option></select></PageHead><div className="metric-grid three"><Metric icon="$" tone="green" label="Gross revenue" value={money(dashboard.totalRevenue)} meta="Server-calculated"/><Metric icon="↗" tone="blue" label="Gross margin" value={`${dashboard.grossMargin}%`} meta="Server-calculated"/><Metric icon="✓" tone="violet" label="Technician yield" value={`${dashboard.technicianYield}/day`} meta="Per technician"/></div><RevenueCard/></>;
 }
