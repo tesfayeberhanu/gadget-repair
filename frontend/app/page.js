@@ -59,7 +59,11 @@ export default function HomePage() {
     form.device = [data.get('deviceType'), data.get('brand'), data.get('device'), data.get('color') && `(${data.get('color')})`].filter(Boolean).join(' ');
     form.condition = physical.length ? physical.map((item) => item.replace('Physical: ', '')).join(', ') : 'Not recorded';
     form.issue = [...checks, accessories.length ? `Accessories: ${accessories.join(', ')}` : '', notes].filter(Boolean).join(' · ') || 'General inspection requested';
-    try { await apiRequest('/api/repairs', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); setShowIntake(false); setActive('Repairs'); notify('Ticket created by server · barcode receipt ready', 2600); }
+    try {
+      const ticket = await apiRequest('/api/repairs', token, { method: 'POST', body: JSON.stringify(form) });
+      sessionStorage.setItem('ifixlab_print_ticket', JSON.stringify({ ...ticket, createdAt: new Date().toISOString() }));
+      window.location.assign('/print-ticket');
+    }
     catch (requestError) { setError(requestError.message); }
   };
 
