@@ -1,7 +1,20 @@
 import { Metric, money, PageHead, RevenueCard, Status } from './SharedUI';
 
 export function RepairsView({ repairs, search, setSearch, role, updateStatus }) {
-  const canUpdate = role === 'Admin' || role === 'Technician';
+  if (role === 'Technician') {
+    const mine = repairs.filter((repair) => repair.isMine && !['Completed', 'Delivered'].includes(repair.status));
+    const available = repairs.filter((repair) => !repair.isMine && repair.status === 'Pending');
+    const history = repairs.filter((repair) => repair.isMine && ['Completed', 'Delivered'].includes(repair.status));
+    const RepairRows = ({ items, action }) => items.length ? items.map((repair) => <tr key={repair.id}>
+      <td><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></td>
+      <td><strong>{repair.device}</strong><small>{repair.issue}</small></td>
+      <td><Status value={repair.status}/></td><td>{repair.tech}</td>
+      {action && <td><button className="table-action" onClick={() => updateStatus(repair.id)}>{repair.status === 'Pending' ? 'Take job' : 'Update'} →</button></td>}
+    </tr>) : <tr><td colSpan="5" className="empty">No repairs in this section.</td></tr>;
+    const Queue = ({ title, items, action }) => <section className="card table-card technician-queue"><div className="panel-title"><div><h2>{title}</h2><p>{items.length} repair{items.length === 1 ? '' : 's'}</p></div></div><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Assigned to</th>{action && <th>Action</th>}</tr></thead><tbody><RepairRows items={items} action={action}/></tbody></table></div></section>;
+    return <><PageHead eyebrow="TECHNICIAN WORKSPACE" title="Repair management"><span className="head-count">Assigned work and available jobs</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search my repairs"/></div></div><Queue title="My in-progress repairs" items={mine} action/><Queue title="Available repairs" items={available} action/><Queue title="My repair history" items={history}/></>;
+  }
+  const canUpdate = false;
   return <><PageHead eyebrow="OPERATIONS" title="Repairs queue"><span className="head-count">{repairs.length} tickets</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by customer, IMEI or ticket ID"/></div><select><option>All statuses</option><option>Pending</option><option>In Progress</option><option>Waiting for Parts</option><option>Completed</option></select></div><section className="card table-card full-table"><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Assigned to</th><th>Estimate</th><th>{canUpdate ? 'Action' : 'Access'}</th></tr></thead><tbody>{repairs.map((repair) => <tr key={repair.id}><td><div className="customer"><span className="avatar small">{repair.avatar}</span><div><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></div></div></td><td><strong>{repair.device}</strong><small>{repair.issue}</small></td><td><Status value={repair.status}/></td><td>{repair.tech}</td><td>{role === 'Technician' ? 'Restricted' : money(repair.total)}</td><td>{canUpdate ? <button className="table-action" onClick={() => updateStatus(repair.id)} disabled={repair.status === 'Delivered'}>{repair.status === 'Pending' ? 'Claim' : repair.status === 'Delivered' ? 'Closed' : 'Advance'} →</button> : <span className="readonly">Read only</span>}</td></tr>)}</tbody></table></div></section></>;
 }
 

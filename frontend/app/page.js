@@ -52,7 +52,10 @@ export default function HomePage() {
     notify(`Loading ${nextRole} access`);
   };
 
-  const openIntake = () => { setShowIntake(true); setActive('New Intake'); };
+  const openIntake = () => {
+    if (role !== 'Front Desk') return notify('Device intake is available to Front Desk only');
+    setShowIntake(true); setActive('New Intake');
+  };
   const closeIntake = () => { setShowIntake(false); setActive('Overview'); };
 
   const createIntake = async (event) => {

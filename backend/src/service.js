@@ -3,7 +3,7 @@ import { requireRole } from './auth.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team'],
-  Technician: ['Overview', 'Repairs', 'Inventory', 'Customers'],
+  Technician: ['Overview', 'Repairs', 'Inventory'],
   'Front Desk': ['Overview', 'New Intake', 'Repairs', 'Point of Sale', 'Customers'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
@@ -12,7 +12,7 @@ const statusLabel = { PENDING: 'Pending', IN_PROGRESS: 'In Progress', WAITING_FO
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
 
-function serializeRepair(ticket, role) {
+function serializeRepair(ticket, role, actorId = null) {
   const name = ticket.customerName;
   return {
     id: ticket.ticketNumber,
@@ -27,6 +27,7 @@ function serializeRepair(ticket, role) {
     tech: ticket.assignedTech?.name || 'Unassigned',
     due: ticket.status === 'COMPLETED' ? 'Ready for pickup' : 'Not scheduled',
     total: role === 'Technician' ? null : Number(ticket.estimatedCost),
+    isMine: Boolean(actorId && ticket.assignedTechId === actorId),
     avatar: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
   };
 }
@@ -47,6 +48,7 @@ async function actorFor(role, client = prisma) {
 }
 
 export async function getWorkspace(role) {
+  const actor = role === 'Technician' ? await actorFor(role) : null;
   const [tickets, parts, sales, team] = await Promise.all([
     prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
@@ -54,12 +56,15 @@ export async function getWorkspace(role) {
     role === 'Admin' ? prisma.user.findMany({ select: { id: true, name: true, role: true }, orderBy: { createdAt: 'asc' } }) : [],
   ]);
 
-  const repairs = tickets.map((ticket) => serializeRepair(ticket, role));
+  const visibleTickets = role === 'Technician'
+    ? tickets.filter((ticket) => ticket.assignedTechId === actor.id || (ticket.status === 'PENDING' && !ticket.assignedTechId))
+    : tickets;
+  const repairs = visibleTickets.map((ticket) => serializeRepair(ticket, role, actor?.id));
   const inventory = parts.map((part) => serializePart(part, role));
-  const active = tickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status));
+  const active = visibleTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status));
   const paidRevenue = sales.filter((sale) => sale.paymentStatus === 'PAID').reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
   const dashboard = role === 'Technician'
-    ? { assignedPending: active.filter((ticket) => ticket.assignedTechId).length, inProgress: tickets.filter((ticket) => ticket.status === 'IN_PROGRESS').length, completedToday: tickets.filter((ticket) => ticket.status === 'COMPLETED').length }
+    ? { assignedPending: active.filter((ticket) => ticket.assignedTechId === actor.id).length, inProgress: visibleTickets.filter((ticket) => ticket.status === 'IN_PROGRESS').length, completedToday: visibleTickets.filter((ticket) => ticket.status === 'COMPLETED').length }
     : role === 'Front Desk'
       ? { intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, dailySales: paidRevenue }
       : { totalRevenue: paidRevenue, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length, grossMargin: 54.2, technicianYield: 6.4 };
@@ -76,7 +81,7 @@ export async function getWorkspace(role) {
 }
 
 export async function createRepair(role, input) {
-  requireRole(role, ['Admin', 'Front Desk']);
+  requireRole(role, ['Front Desk']);
   const required = ['customer', 'phone', 'device', 'imei', 'issue'];
   if (required.some((field) => !String(input[field] || '').trim())) throw new Error('Missing required intake information');
 
@@ -99,16 +104,18 @@ export async function createRepair(role, input) {
 }
 
 export async function advanceRepair(role, ticketNumber) {
-  requireRole(role, ['Admin', 'Technician']);
+  requireRole(role, ['Technician']);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(role, tx);
     const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber }, include: { assignedTech: { select: { name: true } } } });
     if (!ticket) throw new Error('NOT_FOUND');
+    if (ticket.status === 'PENDING' && ticket.assignedTechId && ticket.assignedTechId !== actor.id) throw new Error('FORBIDDEN');
+    if (ticket.status !== 'PENDING' && ticket.assignedTechId !== actor.id) throw new Error('FORBIDDEN');
     const index = statusOrder.indexOf(ticket.status);
     if (index < 0 || index === statusOrder.length - 1) throw new Error('INVALID_STATUS');
     const updated = await tx.repairTicket.update({
       where: { id: ticket.id },
-      data: { status: statusOrder[index + 1], ...(ticket.status === 'PENDING' && role === 'Technician' ? { assignedTechId: actor.id } : {}) },
+      data: { status: statusOrder[index + 1], ...(ticket.status === 'PENDING' ? { assignedTechId: actor.id } : {}) },
       include: { assignedTech: { select: { name: true } } },
     });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.status_changed', entity: 'RepairTicket', entityId: ticket.id } });

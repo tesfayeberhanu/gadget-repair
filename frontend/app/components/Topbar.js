@@ -5,7 +5,7 @@ export default function Topbar({ role, search, setSearch, switchRole, openIntake
     <div className="top-actions">
       <label className="role-picker">Viewing as <select value={role} onChange={(event) => switchRole(event.target.value)}><option>Admin</option><option>Technician</option><option>Front Desk</option></select></label>
       <button className="icon-button" aria-label="Notifications">♢<i>3</i></button>
-      {(role === 'Admin' || role === 'Front Desk') && <button className="primary" onClick={openIntake}>＋ New Intake</button>}
+      {role === 'Front Desk' && <button className="primary" onClick={openIntake}>＋ New Intake</button>}
     </div>
   </header>;
 }
