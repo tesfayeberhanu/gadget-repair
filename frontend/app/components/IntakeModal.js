@@ -21,9 +21,17 @@ const CheckGroup = ({ title, amharic, name, options }) => <fieldset className="i
 
 export default function IntakeModal({ close, submit }) {
   const [brand, setBrand] = useState('Apple');
-  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && close()}>
-    <form className="modal intake-modal card" onSubmit={submit}>
-      <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>Quick device check-in</h2><small>Check what applies — type only the essentials.</small></div><button type="button" onClick={close}>×</button></div>
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    const succeeded = await submit(event);
+    if (!succeeded) setSubmitting(false);
+  };
+  return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !submitting && close()}>
+    <form className="modal intake-modal card" onSubmit={handleSubmit}>
+      <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>Quick device check-in</h2><small>Check what applies — type only the essentials.</small></div><button type="button" onClick={close} disabled={submitting}>×</button></div>
       <div className="intake-scroll">
         <section className="intake-section"><h3>Customer / ደንበኛ</h3><div className="form-grid">
           <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" required /></label>
@@ -52,7 +60,7 @@ export default function IntakeModal({ close, submit }) {
         </div></section>
         <section className="intake-section"><div className="form-grid"><label className="wide">Issue or notes / ችግር ወይም ማስታወሻ<textarea name="issueNotes" placeholder="Optional — add only what the checkboxes do not cover" /></label></div></section>
       </div>
-      <div className="modal-actions"><button type="button" className="outline" onClick={close}>Cancel</button><button className="primary" type="submit">Create ticket & receipt</button></div>
+      <div className="modal-actions"><button type="button" className="outline" onClick={close} disabled={submitting}>Cancel</button><button className="primary" type="submit" disabled={submitting}>{submitting ? 'Creating ticket…' : 'Create ticket & receipt'}</button></div>
     </form>
   </div>;
 }

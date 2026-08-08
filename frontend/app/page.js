@@ -63,8 +63,9 @@ export default function HomePage() {
       const ticket = await apiRequest('/api/repairs', token, { method: 'POST', body: JSON.stringify(form) });
       sessionStorage.setItem('ifixlab_print_ticket', JSON.stringify({ ...ticket, createdAt: new Date().toISOString() }));
       window.location.assign('/print-ticket');
+      return true;
     }
-    catch (requestError) { setError(requestError.message); }
+    catch (requestError) { setError(requestError.message); return false; }
   };
 
   const updateStatus = async (id) => {
