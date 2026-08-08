@@ -27,7 +27,7 @@ export default function IntakeModal({ close, submit }) {
       <div className="intake-scroll">
         <section className="intake-section"><h3>Customer / ደንበኛ</h3><div className="form-grid">
           <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" required /></label>
-          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="+211 ..." autoComplete="tel" required /></label>
+          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="+251 9..." autoComplete="tel" required /></label>
         </div></section>
         <section className="intake-section"><h3>Device / መሣሪያ</h3>
           <div className="device-type-row">{['Phone', 'Tablet', 'Laptop', 'Other'].map((type) => <label className="check-pill" key={type}><input type="radio" name="deviceType" value={type} defaultChecked={type === 'Phone'} /><span>{type}</span></label>)}</div>
@@ -36,7 +36,7 @@ export default function IntakeModal({ close, submit }) {
             <label>Model / ሞዴል<select name="device" key={brand} required>{brandModels[brand].map((model) => <option key={model}>{model}</option>)}</select></label>
             <label>IMEI / Serial<input name="imei" placeholder="Scan or type" required /></label>
             <label>Color / ቀለም<input name="color" placeholder="Color" /></label>
-            <label>Estimate ($)<input name="estimate" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+            <label>Estimate (ETB)<input name="estimate" type="number" min="0" step="0.01" placeholder="0.00" /></label>
           </div>
         </section>
         <section className="intake-section"><h3>Accessories / ተጨማሪ እቃዎች</h3><div className="check-grid">{['SIM', 'Memory card', 'Tray', 'Charger', 'Case'].map((item) => <label className="check-pill" key={item}><input type="checkbox" name="accessories" value={item} /><span>{item}</span></label>)}</div></section>
