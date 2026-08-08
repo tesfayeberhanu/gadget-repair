@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Metric, money, PageHead, RevenueCard, Status } from './SharedUI';
 
 export function RepairsView({ repairs, search, setSearch, role, updateStatus }) {
@@ -35,6 +36,10 @@ export function ReportsView({ dashboard }) {
   return <><PageHead eyebrow="ADMIN ONLY" title="Reports & analytics"><select className="period"><option>This month</option><option>This year</option></select></PageHead><div className="metric-grid three"><Metric icon="$" tone="green" label="Gross revenue" value={money(dashboard.totalRevenue)} meta="Server-calculated"/><Metric icon="↗" tone="blue" label="Gross margin" value={`${dashboard.grossMargin}%`} meta="Server-calculated"/><Metric icon="✓" tone="violet" label="Technician yield" value={`${dashboard.technicianYield}/day`} meta="Per technician"/></div><RevenueCard/></>;
 }
 
-export function TeamView({ team }) {
-  return <><PageHead eyebrow="ACCESS CONTROL" title="Team & roles"><button className="primary">＋ Invite user</button></PageHead><div className="team-grid">{team.map(({ name, role, description }) => <article className="card team-member" key={name}><span className="avatar large">{name.split(' ').map((part) => part[0]).join('')}</span><div><h3>{name}</h3><p>{description}</p></div><span className="role-badge">{role}</span></article>)}</div></>;
+export function TeamView({ team, createStaff, deactivateStaff }) {
+  const [adding, setAdding] = useState(false);
+  const submit = async (event) => { event.preventDefault(); if (await createStaff(Object.fromEntries(new FormData(event.currentTarget)))) { event.currentTarget.reset(); setAdding(false); } };
+  return <><PageHead eyebrow="ACCESS CONTROL" title="Team & roles"><button className="primary" onClick={() => setAdding((value) => !value)}>＋ Add staff</button></PageHead>
+    {adding && <form className="card staff-form" onSubmit={submit}><label>Full name<input name="name" required /></label><label>Email<input name="email" type="email" required /></label><label>Role<select name="role"><option>Technician</option><option>Front Desk</option></select></label><label>Temporary password<input name="password" type="password" minLength="10" required /></label><div><button type="button" className="outline" onClick={() => setAdding(false)}>Cancel</button><button className="primary">Create account</button></div></form>}
+    <div className="team-grid">{team.map(({ id, email, name, role, description }) => <article className="card team-member" key={id}><span className="avatar large">{name.split(' ').map((part) => part[0]).join('')}</span><div><h3>{name}</h3><p>{email}</p><small>{description}</small></div><span className="role-badge">{role}</span>{role !== 'Admin' && <button className="staff-remove" onClick={() => deactivateStaff(id, name)}>Deactivate</button>}</article>)}</div></>;
 }

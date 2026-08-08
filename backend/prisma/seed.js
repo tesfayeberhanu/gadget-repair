@@ -19,7 +19,7 @@ async function main() {
     ['technician@ifixlab251.local', 'Daniel Kimani', 'TECHNICIAN', credential('TECHNICIAN_INITIAL_PASSWORD')],
     ['frontdesk@ifixlab251.local', 'Nora Patel', 'FRONT_DESK', credential('FRONT_DESK_INITIAL_PASSWORD')],
   ].map(([email, name, role, password]) => prisma.user.upsert({
-    where: { email }, update: { name, role, password: hashPassword(password) }, create: { email, name, role, password: hashPassword(password) },
+    where: { email }, update: { name, role, active: true, password: hashPassword(password) }, create: { email, name, role, active: true, password: hashPassword(password) },
   })));
   const [admin, technician, frontDesk] = users;
 

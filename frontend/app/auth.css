@@ -10,3 +10,13 @@
 .login-card input:focus { border-color: #078fe5; box-shadow: 0 0 0 3px #078fe51b; }
 .login-card button { width: 100%; }
 .login-error { padding: 10px !important; color: #a53131; background: #fff1f1; border: 1px solid #f2b9b9; border-radius: 7px; font-size: 11px; }
+.staff-form { padding: 18px; margin-bottom: 16px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: end; }
+.staff-form label { display: grid; gap: 6px; font-size: 10px; font-weight: 700; }
+.staff-form input, .staff-form select { border: 1px solid #dce7f0; border-radius: 7px; padding: 9px; background: #fff; }
+.staff-form > div { display: flex; gap: 7px; }
+.team-member { flex-wrap: wrap; }
+.team-member small { color: var(--muted); font-size: 9px; }
+.staff-remove { margin-left: auto; border: 0; background: #fff1f1; color: #b33b3b; border-radius: 6px; padding: 6px 8px; font-size: 9px; font-weight: 700; }
+
+@media (max-width: 900px) { .staff-form { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .staff-form { grid-template-columns: 1fr; } }

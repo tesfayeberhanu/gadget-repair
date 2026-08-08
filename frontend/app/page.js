@@ -68,11 +68,21 @@ export default function HomePage() {
     catch (requestError) { setError(requestError.message); }
   };
 
+  const createStaff = async (form) => {
+    try { await apiRequest('/api/users', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Staff account created'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const deactivateStaff = async (id, name) => {
+    if (!window.confirm(`Deactivate ${name}? They will no longer be able to sign in.`)) return;
+    try { await apiRequest('/api/users', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Staff account deactivated'); }
+    catch (requestError) { setError(requestError.message); }
+  };
+
   if (token === undefined || (token && !workspace && !error)) return <div className="loading-screen"><span className="loader"></span><p>Loading iFixLab251 workspace…</p></div>;
   if (!token) return <LoginScreen login={login} error={error} />;
 
   const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} />, Inventory: <InventoryView role={role} parts={shared.inventory} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} /> };
+  const views = { Overview: <Overview {...shared} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} />, Inventory: <InventoryView role={role} parts={shared.inventory} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} /> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} />

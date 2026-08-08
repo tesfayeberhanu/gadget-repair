@@ -1,5 +1,5 @@
 import { prisma } from './prisma.js';
-import { createSession, requireRole, verifyPassword } from './auth.js';
+import { createSession, hashPassword, requireRole, verifyPassword } from './auth.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team'],
@@ -43,14 +43,14 @@ function serializeSale(sale) {
 }
 
 async function actorFor(role, client = prisma) {
-  const actor = await client.user.findFirst({ where: { role: dbRole[role] }, orderBy: { createdAt: 'asc' } });
+  const actor = await client.user.findFirst({ where: { role: dbRole[role], active: true }, orderBy: { createdAt: 'asc' } });
   if (!actor) throw new Error(`No seeded ${role} user exists`);
   return actor;
 }
 
 export async function login(email, password) {
   const user = await prisma.user.findUnique({ where: { email: String(email || '').trim().toLowerCase() } });
-  if (!user || !verifyPassword(String(password || ''), user.password)) throw new Error('INVALID_CREDENTIALS');
+  if (!user || !user.active || !verifyPassword(String(password || ''), user.password)) throw new Error('INVALID_CREDENTIALS');
   return { token: createSession(user), user: { name: user.name, role: roleLabel[user.role] || user.role } };
 }
 
@@ -60,7 +60,7 @@ export async function getWorkspace(role) {
     prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
-    role === 'Admin' ? prisma.user.findMany({ select: { id: true, name: true, role: true }, orderBy: { createdAt: 'asc' } }) : [],
+    role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true }, orderBy: { createdAt: 'asc' } }) : [],
   ]);
 
   const visibleTickets = role === 'Technician'
@@ -83,8 +83,36 @@ export async function getWorkspace(role) {
     repairs,
     inventory,
     sales: sales.map(serializeSale),
-    team: team.map((user) => ({ id: user.id, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), description: user.role === 'ADMIN' ? 'Full system access' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
+    team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
   };
+}
+
+export async function createStaff(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const name = String(input.name || '').trim();
+  const email = String(input.email || '').trim().toLowerCase();
+  const password = String(input.password || '');
+  const staffRole = input.role;
+  if (!name || !email.includes('@') || password.length < 10) throw new Error('INVALID_STAFF');
+  if (!['Technician', 'Front Desk'].includes(staffRole)) throw new Error('INVALID_STAFF_ROLE');
+  return prisma.$transaction(async (tx) => {
+    const user = await tx.user.upsert({ where: { email }, update: { name, role: dbRole[staffRole], password: hashPassword(password), active: true }, create: { name, email, role: dbRole[staffRole], password: hashPassword(password), active: true } });
+    await tx.auditLog.create({ data: { userId: actorId, action: 'staff.created_or_reactivated', entity: 'User', entityId: user.id } });
+    return { id: user.id, email: user.email, name: user.name, role: staffRole, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
+  });
+}
+
+export async function deactivateStaff(role, actorId, id) {
+  requireRole(role, ['Admin']);
+  if (!id || id === actorId) throw new Error('PROTECTED_ADMIN');
+  const user = await prisma.user.findUnique({ where: { id } });
+  if (!user) throw new Error('NOT_FOUND');
+  if (user.role === 'ADMIN') throw new Error('PROTECTED_ADMIN');
+  await prisma.$transaction([
+    prisma.user.update({ where: { id }, data: { active: false } }),
+    prisma.auditLog.create({ data: { userId: actorId, action: 'staff.deactivated', entity: 'User', entityId: id } }),
+  ]);
+  return { success: true };
 }
 
 export async function createRepair(role, input) {

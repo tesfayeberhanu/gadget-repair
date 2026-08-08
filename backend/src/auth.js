@@ -1,4 +1,4 @@
-import { createHmac, scryptSync, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 
 export const ROLES = ['Admin', 'Technician', 'Front Desk'];
 const dbRole = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
@@ -12,6 +12,11 @@ export function verifyPassword(password, stored) {
   const actual = scryptSync(password, salt, 64);
   const expected = Buffer.from(expectedHex, 'hex');
   return actual.length === expected.length && timingSafeEqual(actual, expected);
+}
+
+export function hashPassword(password) {
+  const salt = randomBytes(16).toString('hex');
+  return `scrypt:${salt}:${scryptSync(String(password), salt, 64).toString('hex')}`;
 }
 
 export function createSession(user) {

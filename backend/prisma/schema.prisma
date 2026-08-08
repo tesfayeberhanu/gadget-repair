@@ -39,6 +39,7 @@ model User {
   password  String
   name      String
   role      Role     @default(FRONT_DESK)
+  active    Boolean  @default(true)
   createdAt DateTime @default(now())
 
   createdTickets  RepairTicket[] @relation("CreatedBy")
