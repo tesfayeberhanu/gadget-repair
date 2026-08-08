@@ -14,6 +14,7 @@ const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED',
 const statusLabel = { PENDING: 'Pending', IN_PROGRESS: 'In Progress', WAITING_FOR_PARTS: 'Waiting for Parts', COMPLETED: 'Completed', DELIVERED: 'Delivered' };
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
+const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
 
 function serializeRepair(ticket, role, actorId = null) {
   const name = ticket.customerName;
@@ -94,7 +95,7 @@ export async function getWorkspace(role, actorId) {
     repairs,
     inventory,
     sales: sales.map(serializeSale),
-    appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: item.status.replace('_', ' ').toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase()) })),
+    appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: appointmentLabel[item.status] || item.status })),
     team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), permissions: user.permissions, description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
   };
 }
@@ -148,6 +149,21 @@ export async function requestAppointment(input) {
   if (!customerName || customerPhone.length < 7 || !device || !issue || Number.isNaN(preferredDate.getTime()) || preferredDate <= new Date()) throw new Error('INVALID_APPOINTMENT');
   const appointment = await prisma.appointment.create({ data: { customerName, customerPhone, device, issue, preferredDate } });
   return { reference: appointment.id.slice(0, 8).toUpperCase(), status: 'Requested', preferredDate: appointment.preferredDate };
+}
+
+export async function reviewAppointment(role, actorId, input) {
+  requireRole(role, ['Front Desk']);
+  const status = input.action === 'approve' ? 'CONFIRMED' : input.action === 'reject' ? 'CANCELLED' : null;
+  if (!input.id || !status) throw new Error('INVALID_APPOINTMENT_ACTION');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const appointment = await tx.appointment.findUnique({ where: { id: input.id } });
+    if (!appointment) throw new Error('NOT_FOUND');
+    if (appointment.status !== 'REQUESTED') throw new Error('APPOINTMENT_REVIEWED');
+    const updated = await tx.appointment.update({ where: { id: appointment.id }, data: { status } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: input.action === 'approve' ? 'appointment.approved' : 'appointment.rejected', entity: 'Appointment', entityId: appointment.id } });
+    return { id: updated.id, status: appointmentLabel[updated.status] };
+  });
 }
 
 export async function createRepair(role, actorId, input) {
