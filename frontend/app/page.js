@@ -56,7 +56,7 @@ export default function HomePage() {
   const createIntake = async (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget); const checks = data.getAll('checks'); const physical = data.getAll('physical'); const accessories = data.getAll('accessories'); const notes = String(data.get('issueNotes') || '').trim(); const form = Object.fromEntries(data);
-    form.device = [data.get('deviceType'), data.get('device'), data.get('color') && `(${data.get('color')})`].filter(Boolean).join(' ');
+    form.device = [data.get('deviceType'), data.get('brand'), data.get('device'), data.get('color') && `(${data.get('color')})`].filter(Boolean).join(' ');
     form.condition = physical.length ? physical.map((item) => item.replace('Physical: ', '')).join(', ') : 'Not recorded';
     form.issue = [...checks, accessories.length ? `Accessories: ${accessories.join(', ')}` : '', notes].filter(Boolean).join(' · ') || 'General inspection requested';
     try { await apiRequest('/api/repairs', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); setShowIntake(false); setActive('Repairs'); notify('Ticket created by server · barcode receipt ready', 2600); }

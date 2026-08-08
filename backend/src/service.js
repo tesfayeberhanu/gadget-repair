@@ -8,6 +8,8 @@ const navigation = {
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
+const permissionNavigation = { VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory' };
+const allowedPermissions = Object.keys(permissionNavigation);
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Pending', IN_PROGRESS: 'In Progress', WAITING_FOR_PARTS: 'Waiting for Parts', COMPLETED: 'Completed', DELIVERED: 'Delivered' };
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
@@ -42,9 +44,9 @@ function serializeSale(sale) {
   return { id: `#SL-${sale.id.slice(0, 6).toUpperCase()}`, customer: sale.ticket?.customerName || 'Retail customer', item: sale.ticket ? `${sale.ticket.deviceModel} repair` : 'Retail sale', method: methodLabel[sale.paymentMethod], amount: Number(sale.totalAmount), status: paymentLabel[sale.paymentStatus] };
 }
 
-async function actorFor(role, client = prisma) {
-  const actor = await client.user.findFirst({ where: { role: dbRole[role], active: true }, orderBy: { createdAt: 'asc' } });
-  if (!actor) throw new Error(`No seeded ${role} user exists`);
+async function actorFor(actorId, role, client = prisma) {
+  const actor = await client.user.findFirst({ where: { id: actorId, role: dbRole[role], active: true } });
+  if (!actor) throw new Error('UNAUTHORIZED');
   return actor;
 }
 
@@ -54,38 +56,46 @@ export async function login(email, password) {
   return { token: createSession(user), user: { name: user.name, role: roleLabel[user.role] || user.role } };
 }
 
-export async function getWorkspace(role) {
-  const actor = role === 'Technician' ? await actorFor(role) : null;
+export async function getWorkspace(role, actorId) {
+  const actor = await actorFor(actorId, role);
+  const userNavigation = [...navigation[role]];
+  for (const permission of actor.permissions) {
+    const item = permissionNavigation[permission];
+    if (item && !userNavigation.includes(item)) userNavigation.push(item);
+  }
   const [tickets, parts, sales, team, appointments] = await Promise.all([
     prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
-    role === 'Technician' ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
-    role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true }, orderBy: { createdAt: 'asc' } }) : [],
+    role === 'Technician' && !actor.permissions.includes('MANAGE_POS') ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
+    role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true }, orderBy: { createdAt: 'asc' } }) : [],
     role === 'Front Desk' ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
   ]);
 
-  const visibleTickets = role === 'Technician'
+  const visibleTickets = role === 'Technician' && !actor.permissions.includes('VIEW_CUSTOMERS')
     ? tickets.filter((ticket) => ticket.assignedTechId === actor.id || (ticket.status === 'PENDING' && !ticket.assignedTechId))
     : tickets;
   const repairs = visibleTickets.map((ticket) => serializeRepair(ticket, role, actor?.id));
   const inventory = parts.map((part) => serializePart(part, role));
   const active = visibleTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status));
+  const technicianTickets = role === 'Technician' ? tickets.filter((ticket) => ticket.assignedTechId === actor.id) : [];
   const paidRevenue = sales.filter((sale) => sale.paymentStatus === 'PAID').reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
+  const reportMetrics = { totalRevenue: paidRevenue, grossMargin: 54.2, technicianYield: 6.4 };
   const dashboard = role === 'Technician'
-    ? { assignedPending: active.filter((ticket) => ticket.assignedTechId === actor.id).length, inProgress: visibleTickets.filter((ticket) => ticket.status === 'IN_PROGRESS').length, completedToday: visibleTickets.filter((ticket) => ticket.status === 'COMPLETED').length }
+    ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'IN_PROGRESS').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length }
     : role === 'Front Desk'
-      ? { intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, dailySales: paidRevenue }
-      : { totalRevenue: paidRevenue, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length, grossMargin: 54.2, technicianYield: 6.4 };
+      ? { ...reportMetrics, intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, dailySales: paidRevenue }
+      : { ...reportMetrics, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length };
 
   return {
     role,
-    navigation: navigation[role],
+    navigation: userNavigation,
+    permissions: actor.permissions,
     dashboard,
     repairs,
     inventory,
     sales: sales.map(serializeSale),
     appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: item.status.replace('_', ' ').toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase()) })),
-    team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
+    team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), permissions: user.permissions, description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
   };
 }
 
@@ -95,12 +105,13 @@ export async function createStaff(role, actorId, input) {
   const email = String(input.email || '').trim().toLowerCase();
   const password = String(input.password || '');
   const staffRole = input.role;
+  const permissions = Array.isArray(input.permissions) ? input.permissions.filter((permission) => allowedPermissions.includes(permission)) : [];
   if (!name || !email.includes('@') || password.length < 10) throw new Error('INVALID_STAFF');
   if (!['Technician', 'Front Desk'].includes(staffRole)) throw new Error('INVALID_STAFF_ROLE');
   return prisma.$transaction(async (tx) => {
-    const user = await tx.user.upsert({ where: { email }, update: { name, role: dbRole[staffRole], password: hashPassword(password), active: true }, create: { name, email, role: dbRole[staffRole], password: hashPassword(password), active: true } });
+    const user = await tx.user.upsert({ where: { email }, update: { name, role: dbRole[staffRole], permissions, password: hashPassword(password), active: true }, create: { name, email, role: dbRole[staffRole], permissions, password: hashPassword(password), active: true } });
     await tx.auditLog.create({ data: { userId: actorId, action: 'staff.created_or_reactivated', entity: 'User', entityId: user.id } });
-    return { id: user.id, email: user.email, name: user.name, role: staffRole, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
+    return { id: user.id, email: user.email, name: user.name, role: staffRole, permissions, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
   });
 }
 
@@ -139,13 +150,13 @@ export async function requestAppointment(input) {
   return { reference: appointment.id.slice(0, 8).toUpperCase(), status: 'Requested', preferredDate: appointment.preferredDate };
 }
 
-export async function createRepair(role, input) {
+export async function createRepair(role, actorId, input) {
   requireRole(role, ['Front Desk']);
   const required = ['customer', 'phone', 'device', 'imei', 'issue'];
   if (required.some((field) => !String(input[field] || '').trim())) throw new Error('Missing required intake information');
 
   return prisma.$transaction(async (tx) => {
-    const actor = await actorFor(role, tx);
+    const actor = await actorFor(actorId, role, tx);
     const latest = await tx.repairTicket.findFirst({ orderBy: { ticketNumber: 'desc' }, select: { ticketNumber: true } });
     const sequence = Math.max(0, Number(latest?.ticketNumber.split('-').pop()) || 0) + 1;
     const ticket = await tx.repairTicket.create({
@@ -162,10 +173,10 @@ export async function createRepair(role, input) {
   }, { isolationLevel: 'Serializable' });
 }
 
-export async function advanceRepair(role, ticketNumber) {
+export async function advanceRepair(role, actorId, ticketNumber) {
   requireRole(role, ['Technician']);
   return prisma.$transaction(async (tx) => {
-    const actor = await actorFor(role, tx);
+    const actor = await actorFor(actorId, role, tx);
     const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber }, include: { assignedTech: { select: { name: true } } } });
     if (!ticket) throw new Error('NOT_FOUND');
     if (ticket.status === 'PENDING' && ticket.assignedTechId && ticket.assignedTechId !== actor.id) throw new Error('FORBIDDEN');

@@ -47,8 +47,6 @@ const server = createServer(async (request, response) => {
 
   try {
     const url = new URL(request.url, `http://${request.headers.host || '127.0.0.1'}`);
-    const role = () => getSession(requestAdapter(request)).role;
-
     if (request.method === 'GET' && url.pathname === '/api/health') return send(request, response, 200, { status: 'ok', service: 'ifixlab251-backend' });
     if (request.method === 'POST' && url.pathname === '/api/login') {
       const body = await readJson(request);
@@ -58,10 +56,10 @@ const server = createServer(async (request, response) => {
     if (request.method === 'POST' && url.pathname === '/api/public/appointments') return send(request, response, 201, await requestAppointment(await readJson(request)));
     if (request.method === 'GET' && url.pathname === '/api/workspace') {
       const session = getSession(requestAdapter(request));
-      return send(request, response, 200, { ...(await getWorkspace(session.role)), user: { name: session.name, role: session.role } });
+      return send(request, response, 200, { ...(await getWorkspace(session.role, session.sub)), user: { name: session.name, role: session.role } });
     }
-    if (request.method === 'GET' && url.pathname === '/api/repairs') return send(request, response, 200, { repairs: (await getWorkspace(role())).repairs });
-    if (request.method === 'POST' && url.pathname === '/api/repairs') return send(request, response, 201, await createRepair(role(), await readJson(request)));
+    if (request.method === 'GET' && url.pathname === '/api/repairs') { const session = getSession(requestAdapter(request)); return send(request, response, 200, { repairs: (await getWorkspace(session.role, session.sub)).repairs }); }
+    if (request.method === 'POST' && url.pathname === '/api/repairs') { const session = getSession(requestAdapter(request)); return send(request, response, 201, await createRepair(session.role, session.sub, await readJson(request))); }
     if (request.method === 'POST' && url.pathname === '/api/users') {
       const session = getSession(requestAdapter(request));
       return send(request, response, 201, await createStaff(session.role, session.sub, await readJson(request)));
@@ -73,7 +71,8 @@ const server = createServer(async (request, response) => {
     if (request.method === 'PATCH' && url.pathname === '/api/repairs') {
       const body = await readJson(request);
       if (body.action !== 'advance' || !body.id) return send(request, response, 400, { error: 'A supported action and ticket ID are required' });
-      return send(request, response, 200, await advanceRepair(role(), body.id));
+      const session = getSession(requestAdapter(request));
+      return send(request, response, 200, await advanceRepair(session.role, session.sub, body.id));
     }
     return send(request, response, 404, { error: 'Route not found' });
   } catch (error) {
