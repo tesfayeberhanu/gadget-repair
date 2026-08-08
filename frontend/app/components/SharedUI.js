@@ -8,7 +8,7 @@ export function RevenueCard() {
 }
 
 export function StatusCard({ repairs }) {
-  const groups = ['Pending', 'In Progress', 'Waiting for Parts', 'Completed'];
+  const groups = ['Received', 'Diagnosing', 'Repair Approved', 'In Repair'];
   return <section className="card panel"><div className="panel-title"><div><h2>Repair status</h2><p>Current workload breakdown</p></div></div><div className="donut-wrap"><div className="donut"><span><b>{repairs.length + 20}</b>total</span></div><div className="legend">{groups.map((group, index) => <div key={group}><i className={`dot d${index}`}></i><span>{group}</span><strong>{[8, 6, 4, 6][index]}</strong></div>)}</div></div></section>;
 }
 

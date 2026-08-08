@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
-const statuses = ['Pending', 'In Progress', 'Waiting for Parts', 'Completed', 'Delivered'];
+const statuses = ['Received', 'Diagnosing', 'Repair Approved', 'In Repair', 'Ready for Pickup'];
 const posts = [
   { tag: 'BATTERY CARE', title: '5 habits that make your phone battery last longer', summary: 'Small charging changes can reduce heat and slow battery wear.', body: 'Avoid leaving your phone in direct heat, use a reliable charger, and try to keep daily charging between roughly 20% and 90%. If the phone swells, becomes unusually hot, or shuts down unexpectedly, stop charging it and arrange an inspection.' },
   { tag: 'SCREEN & WATER', title: 'What to do immediately after liquid damage', summary: 'Fast, calm action gives a technician the best chance to save the device.', body: 'Turn the device off, disconnect every cable, and do not test the charger. Avoid rice and hair dryers; both can make the damage worse. Bring the phone in as soon as possible and tell the technician what liquid was involved.' },

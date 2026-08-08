@@ -11,7 +11,7 @@ const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front
 const permissionNavigation = { VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory' };
 const allowedPermissions = Object.keys(permissionNavigation);
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
-const statusLabel = { PENDING: 'Pending', IN_PROGRESS: 'In Progress', WAITING_FOR_PARTS: 'Waiting for Parts', COMPLETED: 'Completed', DELIVERED: 'Delivered' };
+const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup' };
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
 const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
@@ -29,7 +29,7 @@ function serializeRepair(ticket, role, actorId = null) {
     condition: ticket.physicalCondition,
     status: statusLabel[ticket.status],
     tech: ticket.assignedTech?.name || 'Unassigned',
-    due: ticket.status === 'COMPLETED' ? 'Ready for pickup' : 'Not scheduled',
+    due: ticket.status === 'DELIVERED' ? 'Ready for pickup' : 'Not scheduled',
     total: role === 'Technician' ? null : Number(ticket.estimatedCost),
     isMine: Boolean(actorId && ticket.assignedTechId === actorId),
     avatar: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
@@ -77,15 +77,15 @@ export async function getWorkspace(role, actorId) {
     : tickets;
   const repairs = visibleTickets.map((ticket) => serializeRepair(ticket, role, actor?.id));
   const inventory = parts.map((part) => serializePart(part, role));
-  const active = visibleTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status));
+  const active = visibleTickets.filter((ticket) => ticket.status !== 'DELIVERED');
   const technicianTickets = role === 'Technician' ? tickets.filter((ticket) => ticket.assignedTechId === actor.id) : [];
   const paidRevenue = sales.filter((sale) => sale.paymentStatus === 'PAID').reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
   const reportMetrics = { totalRevenue: paidRevenue, grossMargin: 54.2, technicianYield: 6.4 };
   const dashboard = role === 'Technician'
-    ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'IN_PROGRESS').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length }
+    ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'DELIVERED').length }
     : role === 'Front Desk'
-      ? { ...reportMetrics, intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, dailySales: paidRevenue }
-      : { ...reportMetrics, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'COMPLETED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length };
+      ? { ...reportMetrics, intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'DELIVERED').length, dailySales: paidRevenue }
+      : { ...reportMetrics, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'DELIVERED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length };
 
   return {
     role,
