@@ -8,7 +8,7 @@
     "dev:backend": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/src/server.js",
     "postinstall": "prisma generate --schema backend/prisma/schema.prisma",
     "build": "next build frontend --webpack",
-    "start": "npm run db:migrate:deploy && npm run start:backend",
+    "start": "npm run db:migrate:deploy && npm run db:seed:users && npm run start:backend",
     "start:all": "concurrently -k -n BACKEND,FRONTEND \"npm run start:backend\" \"npm run start:frontend\"",
     "start:frontend": "next start frontend --hostname 127.0.0.1 --port 3002",
     "start:backend": "node backend/src/server.js",
@@ -18,6 +18,7 @@
     "db:migrate:deploy": "prisma migrate deploy --schema backend/prisma/schema.prisma",
     "db:init:local": "/opt/homebrew/opt/postgresql@16/bin/psql -v ON_ERROR_STOP=1 -d ifixlab251 -f backend/prisma/migrations/20260804220000_init/migration.sql",
     "db:seed": "node backend/prisma/seed.js",
+    "db:seed:users": "node backend/prisma/seed-users.js",
     "db:studio": "prisma studio --schema backend/prisma/schema.prisma"
   },
   "dependencies": {
