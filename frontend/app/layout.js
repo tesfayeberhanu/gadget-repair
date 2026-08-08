@@ -1,5 +1,6 @@
 import './globals.css';
 import './intake.css';
+import './auth.css';
 
 export const metadata = {
   title: 'iFixLab251 | Repair Operations',

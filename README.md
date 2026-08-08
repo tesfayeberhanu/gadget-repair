@@ -29,8 +29,15 @@ customer search; and admin reporting.
    environments, use `npm run db:migrate -- --name init`.
 4. Run `npm run db:seed`.
 
-The seed creates Admin, Technician, and Front Desk development users. Replace the
-seed passwords and connect a real session provider before deployment.
+The seed creates three staff accounts. Passwords come from environment variables
+and are never stored in source control:
+
+- `admin@ifixlab251.local` — `ADMIN_INITIAL_PASSWORD`
+- `technician@ifixlab251.local` — `TECHNICIAN_INITIAL_PASSWORD`
+- `frontdesk@ifixlab251.local` — `FRONT_DESK_INITIAL_PASSWORD`
+
+Set `AUTH_SECRET` to a long random production secret used to sign eight-hour
+staff sessions. Rerunning `npm run db:seed` updates the three account passwords.
 
 ## Project structure
 
@@ -48,5 +55,5 @@ seed passwords and connect a real session provider before deployment.
 The UI loads its workspace from `http://127.0.0.1:4000/api/workspace` and sends
 repair mutations to the standalone backend. Business rules, role filtering,
 dashboard calculations, status transitions, Prisma access, and audit events live
-exclusively under `backend/`. Real session authentication and receipt delivery
-remain production integrations.
+exclusively under `backend/`. Staff authentication uses signed, expiring bearer
+sessions. Receipt delivery remains a future production integration.

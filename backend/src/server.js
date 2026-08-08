@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
-import { getRole } from './auth.js';
-import { advanceRepair, createRepair, getWorkspace } from './service.js';
+import { getSession } from './auth.js';
+import { advanceRepair, createRepair, getWorkspace, login } from './service.js';
 
 const port = Number(process.env.PORT || process.env.BACKEND_PORT || 4000);
 const host = process.env.HOST || '0.0.0.0';
@@ -38,7 +38,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(204, {
       ...corsHeaders(request),
       'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, x-user-role',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400',
     });
     return response.end();
@@ -46,10 +46,17 @@ const server = createServer(async (request, response) => {
 
   try {
     const url = new URL(request.url, `http://${request.headers.host || '127.0.0.1'}`);
-    const role = () => getRole(requestAdapter(request));
+    const role = () => getSession(requestAdapter(request)).role;
 
     if (request.method === 'GET' && url.pathname === '/api/health') return send(request, response, 200, { status: 'ok', service: 'ifixlab251-backend' });
-    if (request.method === 'GET' && url.pathname === '/api/workspace') return send(request, response, 200, await getWorkspace(role()));
+    if (request.method === 'POST' && url.pathname === '/api/login') {
+      const body = await readJson(request);
+      return send(request, response, 200, await login(body.email, body.password));
+    }
+    if (request.method === 'GET' && url.pathname === '/api/workspace') {
+      const session = getSession(requestAdapter(request));
+      return send(request, response, 200, { ...(await getWorkspace(session.role)), user: { name: session.name, role: session.role } });
+    }
     if (request.method === 'GET' && url.pathname === '/api/repairs') return send(request, response, 200, { repairs: (await getWorkspace(role())).repairs });
     if (request.method === 'POST' && url.pathname === '/api/repairs') return send(request, response, 201, await createRepair(role(), await readJson(request)));
     if (request.method === 'PATCH' && url.pathname === '/api/repairs') {
@@ -60,7 +67,7 @@ const server = createServer(async (request, response) => {
     return send(request, response, 404, { error: 'Route not found' });
   } catch (error) {
     const known = {
-      INVALID_ROLE: [401, 'Invalid role'], FORBIDDEN: [403, 'You do not have permission for this action'],
+      UNAUTHORIZED: [401, 'Please sign in'], INVALID_CREDENTIALS: [401, 'Invalid email or password'], AUTH_NOT_CONFIGURED: [503, 'Authentication is not configured'], FORBIDDEN: [403, 'You do not have permission for this action'],
       NOT_FOUND: [404, 'Record not found'], INVALID_STATUS: [400, 'Invalid ticket status transition'],
     };
     const [status, message] = known[error.message] || [500, process.env.NODE_ENV === 'production' ? 'Unexpected server error' : error.message];

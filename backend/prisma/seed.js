@@ -8,12 +8,18 @@ const hashPassword = (password) => {
 };
 
 async function main() {
+  const credential = (key) => {
+    const value = process.env[key];
+    if (value) return value;
+    if (process.env.NODE_ENV === 'production') throw new Error(`${key} must be set before seeding production users`);
+    return 'ChangeMe-251!';
+  };
   const users = await Promise.all([
-    ['admin@ifixlab251.local', 'Alex Kim', 'ADMIN'],
-    ['technician@ifixlab251.local', 'Daniel Kimani', 'TECHNICIAN'],
-    ['frontdesk@ifixlab251.local', 'Nora Patel', 'FRONT_DESK'],
-  ].map(([email, name, role]) => prisma.user.upsert({
-    where: { email }, update: { name, role }, create: { email, name, role, password: hashPassword('ChangeMe-251!') },
+    ['admin@ifixlab251.local', 'Alex Kim', 'ADMIN', credential('ADMIN_INITIAL_PASSWORD')],
+    ['technician@ifixlab251.local', 'Daniel Kimani', 'TECHNICIAN', credential('TECHNICIAN_INITIAL_PASSWORD')],
+    ['frontdesk@ifixlab251.local', 'Nora Patel', 'FRONT_DESK', credential('FRONT_DESK_INITIAL_PASSWORD')],
+  ].map(([email, name, role, password]) => prisma.user.upsert({
+    where: { email }, update: { name, role, password: hashPassword(password) }, create: { email, name, role, password: hashPassword(password) },
   })));
   const [admin, technician, frontDesk] = users;
 

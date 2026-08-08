@@ -1,5 +1,5 @@
 import { prisma } from './prisma.js';
-import { requireRole } from './auth.js';
+import { createSession, requireRole, verifyPassword } from './auth.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team'],
@@ -7,6 +7,7 @@ const navigation = {
   'Front Desk': ['Overview', 'New Intake', 'Repairs', 'Point of Sale', 'Customers'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
+const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Pending', IN_PROGRESS: 'In Progress', WAITING_FOR_PARTS: 'Waiting for Parts', COMPLETED: 'Completed', DELIVERED: 'Delivered' };
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
@@ -45,6 +46,12 @@ async function actorFor(role, client = prisma) {
   const actor = await client.user.findFirst({ where: { role: dbRole[role] }, orderBy: { createdAt: 'asc' } });
   if (!actor) throw new Error(`No seeded ${role} user exists`);
   return actor;
+}
+
+export async function login(email, password) {
+  const user = await prisma.user.findUnique({ where: { email: String(email || '').trim().toLowerCase() } });
+  if (!user || !verifyPassword(String(password || ''), user.password)) throw new Error('INVALID_CREDENTIALS');
+  return { token: createSession(user), user: { name: user.name, role: roleLabel[user.role] || user.role } };
 }
 
 export async function getWorkspace(role) {
