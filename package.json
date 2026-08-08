@@ -17,7 +17,7 @@
     "db:migrate": "prisma migrate dev --schema backend/prisma/schema.prisma",
     "db:migrate:deploy": "prisma migrate deploy --schema backend/prisma/schema.prisma",
     "db:init:local": "/opt/homebrew/opt/postgresql@16/bin/psql -v ON_ERROR_STOP=1 -d ifixlab251 -f backend/prisma/migrations/20260804220000_init/migration.sql",
-    "db:seed": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/prisma/seed.js",
+    "db:seed": "node backend/prisma/seed.js",
     "db:studio": "prisma studio --schema backend/prisma/schema.prisma"
   },
   "dependencies": {
@@ -32,6 +32,6 @@
     "prisma": "^6.19.0"
   },
   "prisma": {
-    "seed": "/opt/homebrew/opt/node@22/bin/node --env-file=.env backend/prisma/seed.js"
+    "seed": "node backend/prisma/seed.js"
   }
 }
