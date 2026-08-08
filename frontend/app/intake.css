@@ -1,0 +1,23 @@
+.intake-modal { width: min(920px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.intake-modal .modal-head { margin-bottom: 14px; }
+.intake-modal .modal-head small { display: block; color: var(--muted); margin-top: 5px; }
+.intake-scroll { overflow: auto; padding-right: 7px; }
+.intake-section { border-top: 1px solid #e8eff5; padding: 15px 2px; }
+.intake-section:first-child { border-top: 0; }
+.intake-section h3 { font-size: 12px; margin: 0 0 11px; color: var(--ink); }
+.compact-fields { margin-top: 12px; }
+.device-type-row, .check-grid { display: flex; flex-wrap: wrap; gap: 7px; }
+.check-pill { display: inline-flex !important; grid-auto-flow: column; align-items: center; gap: 6px !important; border: 1px solid #dce7f0; border-radius: 7px; padding: 7px 9px; background: #fff; font-size: 10px !important; font-weight: 600; cursor: pointer; }
+.check-pill:has(input:checked) { border-color: #078fe5; background: #e9f6ff; color: #066eaf; }
+.check-pill input { width: 14px; height: 14px; margin: 0; accent-color: #078fe5; }
+.condition-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.intake-check-group { margin: 0; border: 1px solid #e3ebf2; border-radius: 9px; padding: 10px; }
+.intake-check-group legend { padding: 0 4px; font-size: 10px; font-weight: 700; color: var(--ink); }
+.intake-check-group legend span { color: var(--muted); font-weight: 500; }
+.intake-modal .modal-actions { margin-top: 10px; flex: 0 0 auto; }
+
+@media (max-width: 760px) {
+  .condition-grid { grid-template-columns: 1fr; }
+  .intake-modal { padding: 17px; }
+  .intake-scroll { padding-right: 2px; }
+}
