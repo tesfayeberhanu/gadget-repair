@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import { Metric, money, PageHead, RevenueCard, Status } from './SharedUI';
 
-export function RepairsView({ repairs, search, setSearch, role, updateStatus }) {
+export function RepairsView({ repairs, search, setSearch, role, updateStatus, confirmDelivery }) {
+  const [deliveryTicket, setDeliveryTicket] = useState(null);
+  const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const submitDelivery = async (event) => {
+    event.preventDefault();
+    if (confirmingDelivery) return;
+    setConfirmingDelivery(true);
+    const password = new FormData(event.currentTarget).get('password');
+    if (await confirmDelivery(deliveryTicket.id, password)) setDeliveryTicket(null);
+    setConfirmingDelivery(false);
+  };
   if (role === 'Technician') {
-    const mine = repairs.filter((repair) => repair.isMine && repair.status !== 'Ready for Pickup');
+    const mine = repairs.filter((repair) => repair.isMine && !['Ready for Pickup', 'Delivered'].includes(repair.status));
     const available = repairs.filter((repair) => !repair.isMine && repair.status === 'Received');
-    const history = repairs.filter((repair) => repair.isMine && repair.status === 'Ready for Pickup');
+    const history = repairs.filter((repair) => repair.isMine && ['Ready for Pickup', 'Delivered'].includes(repair.status));
     const RepairRows = ({ items, action }) => items.length ? items.map((repair) => <tr key={repair.id}>
       <td><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></td>
       <td><strong>{repair.device}</strong><small>{repair.issue}</small></td>
@@ -15,8 +25,9 @@ export function RepairsView({ repairs, search, setSearch, role, updateStatus }) 
     const Queue = ({ title, items, action }) => <section className="card table-card technician-queue"><div className="panel-title"><div><h2>{title}</h2><p>{items.length} repair{items.length === 1 ? '' : 's'}</p></div></div><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Assigned to</th>{action && <th>Action</th>}</tr></thead><tbody><RepairRows items={items} action={action}/></tbody></table></div></section>;
     return <><PageHead eyebrow="TECHNICIAN WORKSPACE" title="Repair management"><span className="head-count">Assigned work and available jobs</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search my repairs"/></div></div><Queue title="My in-progress repairs" items={mine} action/><Queue title="Available repairs" items={available} action/><Queue title="My repair history" items={history}/></>;
   }
-  const canUpdate = false;
-  return <><PageHead eyebrow="OPERATIONS" title="Repairs queue"><span className="head-count">{repairs.length} tickets</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by customer, IMEI or ticket ID"/></div><select><option>All statuses</option><option>Received</option><option>Diagnosing</option><option>Repair Approved</option><option>In Repair</option><option>Ready for Pickup</option></select></div><section className="card table-card full-table"><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Assigned to</th><th>Estimate</th><th>{canUpdate ? 'Action' : 'Access'}</th></tr></thead><tbody>{repairs.map((repair) => <tr key={repair.id}><td><div className="customer"><span className="avatar small">{repair.avatar}</span><div><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></div></div></td><td><strong>{repair.device}</strong><small>{repair.issue}</small></td><td><Status value={repair.status}/></td><td>{repair.tech}</td><td>{role === 'Technician' ? 'Restricted' : money(repair.total)}</td><td>{canUpdate ? <button className="table-action" onClick={() => updateStatus(repair.id)} disabled={repair.status === 'Ready for Pickup'}>{repair.status === 'Received' ? 'Claim' : repair.status === 'Ready for Pickup' ? 'Closed' : 'Advance'} →</button> : <span className="readonly">Read only</span>}</td></tr>)}</tbody></table></div></section></>;
+  return <><PageHead eyebrow="OPERATIONS" title="Repairs queue"><span className="head-count">{repairs.length} tickets</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by customer, IMEI or ticket ID"/></div><select><option>All statuses</option><option>Received</option><option>Diagnosing</option><option>Repair Approved</option><option>In Repair</option><option>Ready for Pickup</option><option>Delivered</option></select></div><section className="card table-card full-table"><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Assigned to</th><th>Estimate</th><th>Action</th></tr></thead><tbody>{repairs.map((repair) => <tr key={repair.id}><td><div className="customer"><span className="avatar small">{repair.avatar}</span><div><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></div></div></td><td><strong>{repair.device}</strong><small>{repair.issue}</small></td><td><Status value={repair.status}/>{repair.delivery && <small>By {repair.delivery.deliveredBy} · {new Date(repair.delivery.deliveredAt).toLocaleString()}</small>}</td><td>{repair.tech}</td><td>{money(repair.total)}</td><td>{role === 'Front Desk' && repair.status === 'Ready for Pickup' ? <button className="primary delivery-button" onClick={() => setDeliveryTicket(repair)}>Confirm delivery</button> : <span className="readonly">{repair.status === 'Delivered' ? 'Delivery recorded' : 'Read only'}</span>}</td></tr>)}</tbody></table></div></section>
+    {deliveryTicket && <div className="modal-backdrop"><form className="modal card delivery-modal" onSubmit={submitDelivery}><div className="modal-head"><div><p>SECURE HANDOVER</p><h2>Confirm delivery</h2><small>Your account will be recorded as the staff signature.</small></div><button type="button" onClick={() => setDeliveryTicket(null)} disabled={confirmingDelivery}>×</button></div><div className="delivery-summary"><strong>{deliveryTicket.id}</strong><span>{deliveryTicket.customer}</span><span>{deliveryTicket.device}</span><span>{deliveryTicket.tech}</span></div><label className="delivery-password">Your password<input name="password" type="password" autoComplete="current-password" required autoFocus placeholder="Re-enter your password"/></label><div className="modal-actions"><button type="button" className="outline" onClick={() => setDeliveryTicket(null)} disabled={confirmingDelivery}>Cancel</button><button className="primary" disabled={confirmingDelivery}>{confirmingDelivery ? 'Confirming…' : 'Confirm delivery'}</button></div></form></div>}
+  </>;
 }
 
 export function InventoryView({ role, parts }) {

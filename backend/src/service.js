@@ -11,7 +11,7 @@ const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front
 const permissionNavigation = { VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory' };
 const allowedPermissions = Object.keys(permissionNavigation);
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
-const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup' };
+const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup', PICKED_UP: 'Delivered' };
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
 const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
@@ -32,6 +32,7 @@ function serializeRepair(ticket, role, actorId = null) {
     due: ticket.status === 'DELIVERED' ? 'Ready for pickup' : 'Not scheduled',
     total: role === 'Technician' ? null : Number(ticket.estimatedCost),
     isMine: Boolean(actorId && ticket.assignedTechId === actorId),
+    delivery: ticket.delivery ? { deliveredBy: ticket.delivery.deliveredBy.name, deliveredAt: ticket.delivery.deliveredAt, paymentStatus: paymentLabel[ticket.delivery.paymentStatus] } : null,
     avatar: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
   };
 }
@@ -65,7 +66,7 @@ export async function getWorkspace(role, actorId) {
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
   const [tickets, parts, sales, team, appointments] = await Promise.all([
-    prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } } }, orderBy: { createdAt: 'desc' } }),
+    prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } }, delivery: { include: { deliveredBy: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' && !actor.permissions.includes('MANAGE_POS') ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
     role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true }, orderBy: { createdAt: 'asc' } }) : [],
@@ -77,7 +78,7 @@ export async function getWorkspace(role, actorId) {
     : tickets;
   const repairs = visibleTickets.map((ticket) => serializeRepair(ticket, role, actor?.id));
   const inventory = parts.map((part) => serializePart(part, role));
-  const active = visibleTickets.filter((ticket) => ticket.status !== 'DELIVERED');
+  const active = visibleTickets.filter((ticket) => !['DELIVERED', 'PICKED_UP'].includes(ticket.status));
   const technicianTickets = role === 'Technician' ? tickets.filter((ticket) => ticket.assignedTechId === actor.id) : [];
   const paidRevenue = sales.filter((sale) => sale.paymentStatus === 'PAID').reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
   const reportMetrics = { totalRevenue: paidRevenue, grossMargin: 54.2, technicianYield: 6.4 };
@@ -206,5 +207,27 @@ export async function advanceRepair(role, actorId, ticketNumber) {
     });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.status_changed', entity: 'RepairTicket', entityId: ticket.id } });
     return serializeRepair(updated, role);
+  });
+}
+
+export async function confirmDelivery(role, actorId, input) {
+  requireRole(role, ['Front Desk']);
+  const password = String(input.password || '');
+  if (!input.id || !password) throw new Error('DELIVERY_AUTH_REQUIRED');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    if (!verifyPassword(password, actor.password)) throw new Error('INVALID_DELIVERY_AUTH');
+    const ticket = await tx.repairTicket.findUnique({
+      where: { ticketNumber: input.id },
+      include: { assignedTech: { select: { name: true } }, sales: { orderBy: { createdAt: 'desc' }, take: 1 } },
+    });
+    if (!ticket) throw new Error('NOT_FOUND');
+    if (ticket.status === 'PICKED_UP') throw new Error('ALREADY_DELIVERED');
+    if (ticket.status !== 'DELIVERED') throw new Error('NOT_READY_FOR_DELIVERY');
+    const paymentStatus = ticket.sales[0]?.paymentStatus || 'PENDING';
+    const delivery = await tx.deliveryRecord.create({ data: { ticketId: ticket.id, deliveredById: actor.id, paymentStatus } });
+    await tx.repairTicket.update({ where: { id: ticket.id }, data: { status: 'PICKED_UP' } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.delivery_confirmed', entity: 'RepairTicket', entityId: ticket.id } });
+    return { jobId: ticket.ticketNumber, status: 'Delivered', deliveredBy: actor.name, deliveredAt: delivery.deliveredAt, payment: paymentLabel[paymentStatus], device: ticket.deviceModel, customer: ticket.customerName, technician: ticket.assignedTech?.name || 'Unassigned' };
   });
 }

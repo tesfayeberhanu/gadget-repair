@@ -19,6 +19,7 @@ enum TicketStatus {
   WAITING_FOR_PARTS
   COMPLETED
   DELIVERED
+  PICKED_UP
 }
 
 enum PaymentMethod {
@@ -40,43 +41,45 @@ enum AppointmentStatus {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(FRONT_DESK)
-  active    Boolean  @default(true)
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  name        String
+  role        Role     @default(FRONT_DESK)
+  active      Boolean  @default(true)
   permissions String[] @default([])
-  createdAt DateTime @default(now())
+  createdAt   DateTime @default(now())
 
-  createdTickets  RepairTicket[] @relation("CreatedBy")
-  assignedTickets RepairTicket[] @relation("AssignedTech")
+  createdTickets  RepairTicket[]   @relation("CreatedBy")
+  assignedTickets RepairTicket[]   @relation("AssignedTech")
   sales           Sale[]
   auditLogs       AuditLog[]
+  deliveries      DeliveryRecord[]
 }
 
 model RepairTicket {
-  id             String       @id @default(uuid())
-  ticketNumber   String       @unique
-  customerName   String
-  customerPhone  String
-  deviceModel    String
-  serialOrImei   String?
+  id                String       @id @default(uuid())
+  ticketNumber      String       @unique
+  customerName      String
+  customerPhone     String
+  deviceModel       String
+  serialOrImei      String?
   physicalCondition String?
-  reportedIssue  String
-  status         TicketStatus @default(PENDING)
-  estimatedCost  Decimal      @db.Decimal(10, 2)
+  reportedIssue     String
+  status            TicketStatus @default(PENDING)
+  estimatedCost     Decimal      @db.Decimal(10, 2)
 
-  createdById    String
-  createdBy      User         @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById String
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
 
   assignedTechId String?
-  assignedTech   User?        @relation("AssignedTech", fields: [assignedTechId], references: [id])
+  assignedTech   User?   @relation("AssignedTech", fields: [assignedTechId], references: [id])
 
-  usedParts      TicketPart[]
-  sales          Sale[]
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  usedParts TicketPart[]
+  sales     Sale[]
+  delivery  DeliveryRecord?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
 
   @@index([status])
   @@index([customerPhone])
@@ -107,15 +110,15 @@ model TicketPart {
 }
 
 model Sale {
-  id            String         @id @default(uuid())
+  id            String        @id @default(uuid())
   ticketId      String?
-  ticket        RepairTicket?  @relation(fields: [ticketId], references: [id])
-  totalAmount   Decimal        @db.Decimal(10, 2)
+  ticket        RepairTicket? @relation(fields: [ticketId], references: [id])
+  totalAmount   Decimal       @db.Decimal(10, 2)
   paymentMethod PaymentMethod
-  paymentStatus PaymentStatus  @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
   processedBy   String
-  user          User           @relation(fields: [processedBy], references: [id])
-  createdAt     DateTime       @default(now())
+  user          User          @relation(fields: [processedBy], references: [id])
+  createdAt     DateTime      @default(now())
 }
 
 model AuditLog {
@@ -143,4 +146,17 @@ model Appointment {
 
   @@index([preferredDate])
   @@index([customerPhone])
+}
+
+model DeliveryRecord {
+  id            String        @id @default(uuid())
+  ticketId      String        @unique
+  ticket        RepairTicket  @relation(fields: [ticketId], references: [id])
+  deliveredById String
+  deliveredBy   User          @relation(fields: [deliveredById], references: [id])
+  paymentStatus PaymentStatus
+  deliveredAt   DateTime      @default(now())
+
+  @@index([deliveredAt])
+  @@index([deliveredById])
 }
