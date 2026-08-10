@@ -77,6 +77,19 @@ export default function HomePage() {
     try { await apiRequest('/api/users', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Staff account created'); return true; }
     catch (requestError) { setError(requestError.message); return false; }
   };
+  const createInventoryItem = async (form) => {
+    try { await apiRequest('/api/inventory', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Inventory item added'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const updateInventoryItem = async (form) => {
+    try { await apiRequest('/api/inventory', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify('Inventory item updated'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const deleteInventoryItem = async (id, name) => {
+    if (!window.confirm(`Delete ${name}? This cannot be undone.`)) return;
+    try { await apiRequest('/api/inventory', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Inventory item deleted'); }
+    catch (requestError) { setError(requestError.message); }
+  };
   const deactivateStaff = async (id, name) => {
     if (!window.confirm(`Deactivate ${name}? They will no longer be able to sign in.`)) return;
     try { await apiRequest('/api/users', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Staff account deactivated'); }
@@ -104,7 +117,7 @@ export default function HomePage() {
   if (!token) return <LoginScreen login={login} error={error} />;
 
   const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} /> };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} /> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} />

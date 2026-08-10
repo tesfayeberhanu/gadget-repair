@@ -30,9 +30,24 @@ export function RepairsView({ repairs, search, setSearch, role, updateStatus, co
   </>;
 }
 
-export function InventoryView({ role, parts }) {
+export function InventoryView({ role, parts, createInventoryItem, updateInventoryItem, deleteInventoryItem }) {
   const admin = role === 'Admin';
-  return <><PageHead eyebrow="STOCK CONTROL" title="Inventory & parts"><button className="primary">＋ Add item</button></PageHead><div className="notice"><span>!</span>{parts.filter((part) => part.stock <= part.min).length} items are below their minimum stock threshold.</div><section className="card table-card full-table"><div className="table-scroll"><table><thead><tr><th>Part</th><th>Compatible devices</th><th>Available</th>{admin && <><th>Cost</th><th>Selling price</th><th>Margin</th></>}<th>Stock health</th></tr></thead><tbody>{parts.map((part) => <tr key={part.sku}><td><strong>{part.name}</strong><small>{part.sku}</small></td><td>{part.device}</td><td><strong>{part.stock}</strong> units</td>{admin && <><td>{money(part.cost)}</td><td>{money(part.price)}</td><td>{Math.round((part.price - part.cost) / part.price * 100)}%</td></>}<td><span className={part.stock <= part.min ? 'stock-low' : 'stock-ok'}>{part.stock <= part.min ? 'Low stock' : 'Healthy'}</span></td></tr>)}</tbody></table></div>{!admin && <div className="restricted-note">Cost prices and profit margins are hidden for your role.</div>}</section></>;
+  const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const closeForm = () => { if (!saving) { setAdding(false); setEditing(null); } };
+  const submit = async (event) => {
+    event.preventDefault();
+    if (saving) return;
+    setSaving(true);
+    const form = Object.fromEntries(new FormData(event.currentTarget));
+    const saved = editing ? await updateInventoryItem({ ...form, id: editing.id }) : await createInventoryItem(form);
+    if (saved) { event.currentTarget.reset(); setAdding(false); setEditing(null); }
+    setSaving(false);
+  };
+  return <><PageHead eyebrow="STOCK CONTROL" title="Inventory & parts">{admin && <button className="primary" onClick={() => { setEditing(null); setAdding(true); }}>＋ Add item</button>}</PageHead><div className="notice"><span>!</span>{parts.filter((part) => part.stock <= part.min).length} items are below their minimum stock threshold.</div><section className="card table-card full-table inventory-table"><div className="panel-title"><div><h2>☷ &nbsp; All Inventory Items</h2><p>{parts.length} item{parts.length === 1 ? '' : 's'}</p></div></div><div className="table-scroll"><table><thead><tr><th>ID</th><th>Item Name</th><th>Category</th><th>Qty</th><th>Unit Price</th><th>Total Value</th><th>Description</th><th>Last Updated</th>{admin && <th>Actions</th>}</tr></thead><tbody>{parts.length ? parts.map((part, index) => <tr key={part.id}><td>{index + 1}</td><td><strong>{part.name}</strong></td><td><span className="category-badge">{part.category}</span></td><td><span className={part.stock <= part.min ? 'quantity-badge low' : 'quantity-badge'}>{part.stock}</span></td><td>{money(part.price)}</td><td><strong>{money(part.stock * part.price)}</strong></td><td className="description-cell" title={part.description}>{part.description || '—'}</td><td>{new Date(part.updatedAt || part.createdAt).toLocaleDateString()}</td>{admin && <td><div className="inventory-actions"><button onClick={() => { setEditing(part); setAdding(true); }}>✎ Edit</button><button className="delete" onClick={() => deleteInventoryItem(part.id, part.name)}>♲ Delete</button></div></td>}</tr>) : <tr><td colSpan={admin ? 9 : 8} className="empty">No inventory items yet.</td></tr>}</tbody></table></div></section>
+    {adding && <div className="modal-backdrop"><form className="modal card inventory-modal" onSubmit={submit}><div className="modal-head"><div><p>STOCK CONTROL</p><h2>{editing ? '✎ Edit Inventory Item' : '＋ Add Inventory Item'}</h2></div><button type="button" onClick={closeForm} disabled={saving} aria-label="Close">×</button></div><div className="form-grid"><label>Item Name *<input name="name" required autoFocus placeholder="e.g., iPhone Screen" defaultValue={editing?.name || ''} /></label><label>Category *<select name="category" required defaultValue={editing?.category || ''}><option value="" disabled>Select category</option><option>Screen</option><option>Battery</option><option>Accessory</option><option>Cable</option><option>Camera</option><option>Part</option><option>Other</option></select></label><label>Quantity *<input name="quantity" type="number" min="0" step="1" defaultValue={editing?.stock ?? 0} required /></label><label>Unit Price (ETB) *<input name="unitPrice" type="number" min="0" step="0.01" placeholder="0.00" defaultValue={editing?.price ?? ''} required /></label><label className="wide">Description<textarea name="description" placeholder="Optional details" defaultValue={editing?.description || ''} /></label></div><div className="modal-actions"><button type="button" className="outline" onClick={closeForm} disabled={saving}>Cancel</button><button className="primary" disabled={saving}>{saving ? 'Saving…' : editing ? 'Save Changes' : '＋ Add Item'}</button></div></form></div>}
+  </>;
 }
 
 export function SalesView({ sales, notify }) {

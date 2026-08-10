@@ -90,11 +90,15 @@ model Part {
   id                String       @id @default(uuid())
   sku               String       @unique
   name              String
+  category          String?
+  description       String?
   compatibleDevices String?
   stockQty          Int
   minimumStockQty   Int          @default(5)
   costPrice         Decimal      @db.Decimal(10, 2)
   retailPrice       Decimal      @db.Decimal(10, 2)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
   ticketParts       TicketPart[]
 }
 

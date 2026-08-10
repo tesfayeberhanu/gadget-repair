@@ -1,0 +1,9 @@
+.inventory-table .panel-title { align-items: center; margin-bottom: 0; padding: 18px 20px; }
+.inventory-table th, .inventory-table td { padding-top: 15px; padding-bottom: 15px; }
+.category-badge { display: inline-block; background: #f0f3f5; border: 1px solid #d9e0e5; border-radius: 5px; padding: 5px 9px; color: #536170; font-weight: 700; }
+.quantity-badge { display: inline-block; min-width: 34px; text-align: center; background: #ddf4e3; color: #19833a; border-radius: 5px; padding: 5px 8px; font-weight: 700; }
+.quantity-badge.low { background: #fff0dc; color: #b76b12; }
+.description-cell { max-width: 230px; overflow: hidden; text-overflow: ellipsis; }
+.inventory-actions { display: flex; gap: 14px; }
+.inventory-actions button { border: 0; background: transparent; color: #087dca; padding: 0; font-weight: 600; white-space: nowrap; }
+.inventory-actions button.delete { color: #d74634; }

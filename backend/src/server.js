@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { getSession } from './auth.js';
-import { advanceRepair, confirmDelivery, createRepair, createStaff, deactivateStaff, getWorkspace, login, requestAppointment, reviewAppointment, trackRepair } from './service.js';
+import { advanceRepair, confirmDelivery, createInventoryItem, createRepair, createStaff, deactivateStaff, deleteInventoryItem, getWorkspace, login, requestAppointment, reviewAppointment, trackRepair, updateInventoryItem } from './service.js';
 
 const port = Number(process.env.PORT || process.env.BACKEND_PORT || 4000);
 const host = process.env.HOST || '0.0.0.0';
@@ -64,6 +64,9 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'GET' && url.pathname === '/api/repairs') { const session = getSession(requestAdapter(request)); return send(request, response, 200, { repairs: (await getWorkspace(session.role, session.sub)).repairs }); }
     if (request.method === 'POST' && url.pathname === '/api/repairs') { const session = getSession(requestAdapter(request)); return send(request, response, 201, await createRepair(session.role, session.sub, await readJson(request))); }
+    if (request.method === 'POST' && url.pathname === '/api/inventory') { const session = getSession(requestAdapter(request)); return send(request, response, 201, await createInventoryItem(session.role, session.sub, await readJson(request))); }
+    if (request.method === 'PATCH' && url.pathname === '/api/inventory') { const session = getSession(requestAdapter(request)); return send(request, response, 200, await updateInventoryItem(session.role, session.sub, await readJson(request))); }
+    if (request.method === 'DELETE' && url.pathname === '/api/inventory') { const session = getSession(requestAdapter(request)); return send(request, response, 200, await deleteInventoryItem(session.role, session.sub, (await readJson(request)).id)); }
     if (request.method === 'PATCH' && url.pathname === '/api/repairs/delivery') { const session = getSession(requestAdapter(request)); return send(request, response, 200, await confirmDelivery(session.role, session.sub, await readJson(request))); }
     if (request.method === 'POST' && url.pathname === '/api/users') {
       const session = getSession(requestAdapter(request));
@@ -83,7 +86,7 @@ const server = createServer(async (request, response) => {
   } catch (error) {
     const known = {
       UNAUTHORIZED: [401, 'Please sign in'], INVALID_CREDENTIALS: [401, 'Invalid email or password'], AUTH_NOT_CONFIGURED: [503, 'Authentication is not configured'], FORBIDDEN: [403, 'You do not have permission for this action'],
-      NOT_FOUND: [404, 'Record not found'], INVALID_STATUS: [400, 'Invalid ticket status transition'], INVALID_STAFF: [400, 'Name, valid email and a password of at least 10 characters are required'], INVALID_STAFF_ROLE: [400, 'Only Technician and Front Desk accounts can be created'], PROTECTED_ADMIN: [400, 'The Admin account cannot be deactivated'], INVALID_TRACKING: [400, 'Ticket number and matching phone number are required'], TRACKING_NOT_FOUND: [404, 'No matching repair was found'], INVALID_APPOINTMENT: [400, 'Complete all appointment fields and choose a future date'], INVALID_APPOINTMENT_ACTION: [400, 'Choose approve or reject'], APPOINTMENT_REVIEWED: [409, 'This appointment request has already been reviewed'], DELIVERY_AUTH_REQUIRED: [400, 'Enter your password to confirm delivery'], INVALID_DELIVERY_AUTH: [401, 'The password is incorrect'], NOT_READY_FOR_DELIVERY: [409, 'This repair is not ready for pickup'], ALREADY_DELIVERED: [409, 'This device has already been delivered'],
+      NOT_FOUND: [404, 'Record not found'], INVALID_STATUS: [400, 'Invalid ticket status transition'], INVALID_STAFF: [400, 'Name, valid email and a password of at least 10 characters are required'], INVALID_STAFF_ROLE: [400, 'Only Technician and Front Desk accounts can be created'], PROTECTED_ADMIN: [400, 'The Admin account cannot be deactivated'], INVALID_INVENTORY_ITEM: [400, 'Enter an item name, category, valid quantity, and unit price'], INVENTORY_SKU_EXISTS: [409, 'An inventory item with this SKU already exists'], INVENTORY_IN_USE: [409, 'This item is used by a repair and cannot be deleted'], INVALID_TRACKING: [400, 'Ticket number and matching phone number are required'], TRACKING_NOT_FOUND: [404, 'No matching repair was found'], INVALID_APPOINTMENT: [400, 'Complete all appointment fields and choose a future date'], INVALID_APPOINTMENT_ACTION: [400, 'Choose approve or reject'], APPOINTMENT_REVIEWED: [409, 'This appointment request has already been reviewed'], DELIVERY_AUTH_REQUIRED: [400, 'Enter your password to confirm delivery'], INVALID_DELIVERY_AUTH: [401, 'The password is incorrect'], NOT_READY_FOR_DELIVERY: [409, 'This repair is not ready for pickup'], ALREADY_DELIVERED: [409, 'This device has already been delivered'],
     };
     const [status, message] = known[error.message] || [500, process.env.NODE_ENV === 'production' ? 'Unexpected server error' : error.message];
     return send(request, response, status, { error: message });

@@ -38,7 +38,7 @@ function serializeRepair(ticket, role, actorId = null) {
 }
 
 function serializePart(part, role) {
-  const base = { id: part.id, sku: part.sku, name: part.name, device: part.compatibleDevices || 'Universal', stock: part.stockQty, min: part.minimumStockQty };
+  const base = { id: part.id, sku: part.sku, name: part.name, category: part.category || 'Other', description: part.description || '', device: part.compatibleDevices || 'Universal', stock: part.stockQty, min: part.minimumStockQty, createdAt: part.createdAt, updatedAt: part.updatedAt };
   return role === 'Admin' ? { ...base, cost: Number(part.costPrice), price: Number(part.retailPrice) } : base;
 }
 
@@ -128,6 +128,68 @@ export async function deactivateStaff(role, actorId, id) {
     prisma.auditLog.create({ data: { userId: actorId, action: 'staff.deactivated', entity: 'User', entityId: id } }),
   ]);
   return { success: true };
+}
+
+export async function createInventoryItem(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const name = String(input.name || '').trim();
+  const category = String(input.category || '').trim();
+  const description = String(input.description || '').trim() || null;
+  const stockQty = Number(input.quantity);
+  const unitPrice = Number(input.unitPrice);
+  const categories = ['Screen', 'Battery', 'Accessory', 'Cable', 'Camera', 'Part', 'Other'];
+  if (!name || !categories.includes(category) || input.quantity === '' || input.unitPrice === ''
+    || !Number.isInteger(stockQty) || stockQty < 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
+    throw new Error('INVALID_INVENTORY_ITEM');
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const sku = `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const part = await tx.part.create({ data: { sku, name, category, description, stockQty, minimumStockQty: 5, costPrice: unitPrice, retailPrice: unitPrice } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.created', entity: 'Part', entityId: part.id } });
+    return serializePart(part, role);
+  });
+}
+
+function inventoryInput(input) {
+  const name = String(input.name || '').trim();
+  const category = String(input.category || '').trim();
+  const description = String(input.description || '').trim() || null;
+  const stockQty = Number(input.quantity);
+  const unitPrice = Number(input.unitPrice);
+  const categories = ['Screen', 'Battery', 'Accessory', 'Cable', 'Camera', 'Part', 'Other'];
+  if (!name || !categories.includes(category) || input.quantity === '' || input.unitPrice === ''
+    || !Number.isInteger(stockQty) || stockQty < 0 || !Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('INVALID_INVENTORY_ITEM');
+  return { name, category, description, stockQty, costPrice: unitPrice, retailPrice: unitPrice };
+}
+
+export async function updateInventoryItem(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  if (!input.id) throw new Error('NOT_FOUND');
+  const data = inventoryInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.part.findUnique({ where: { id: input.id } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const part = await tx.part.update({ where: { id: input.id }, data });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.updated', entity: 'Part', entityId: part.id } });
+    return serializePart(part, role);
+  });
+}
+
+export async function deleteInventoryItem(role, actorId, id) {
+  requireRole(role, ['Admin']);
+  if (!id) throw new Error('NOT_FOUND');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.part.findUnique({ where: { id }, include: { _count: { select: { ticketParts: true } } } });
+    if (!existing) throw new Error('NOT_FOUND');
+    if (existing._count.ticketParts > 0) throw new Error('INVENTORY_IN_USE');
+    await tx.part.delete({ where: { id } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.deleted', entity: 'Part', entityId: id } });
+    return { success: true };
+  });
 }
 
 const normalizePhone = (value) => String(value || '').replace(/[^0-9+]/g, '');
