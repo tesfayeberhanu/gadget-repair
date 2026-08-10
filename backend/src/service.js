@@ -3,7 +3,7 @@ import { createSession, hashPassword, requireRole, verifyPassword } from './auth
 import { createHash, randomBytes } from 'node:crypto';
 
 const navigation = {
-  Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team'],
+  Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Settings'],
   Technician: ['Overview', 'Repairs', 'Inventory'],
   'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers'],
 };
@@ -148,6 +148,7 @@ export async function getWorkspace(role, actorId) {
 
   return {
     role,
+    user: { name: actor.name, email: actor.email, role },
     navigation: userNavigation,
     permissions: actor.permissions,
     dashboard,
@@ -157,6 +158,36 @@ export async function getWorkspace(role, actorId) {
     appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: appointmentLabel[item.status] || item.status })),
     team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), permissions: user.permissions, description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
   };
+}
+
+export async function updateProfile(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const name = String(input.name || '').trim();
+  const email = String(input.email || '').trim().toLowerCase();
+  if (!name || !email.includes('@')) throw new Error('INVALID_PROFILE');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const duplicate = await tx.user.findFirst({ where: { email, id: { not: actor.id } }, select: { id: true } });
+    if (duplicate) throw new Error('PROFILE_EMAIL_EXISTS');
+    const user = await tx.user.update({ where: { id: actor.id }, data: { name, email } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'profile.updated', entity: 'User', entityId: actor.id } });
+    return { name: user.name, email: user.email, role };
+  });
+}
+
+export async function changePassword(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const currentPassword = String(input.currentPassword || '');
+  const newPassword = String(input.newPassword || '');
+  if (newPassword.length < 10) throw new Error('INVALID_NEW_PASSWORD');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    if (!verifyPassword(currentPassword, actor.password)) throw new Error('INVALID_CURRENT_PASSWORD');
+    await tx.user.update({ where: { id: actor.id }, data: { password: hashPassword(newPassword) } });
+    await tx.passwordResetToken.updateMany({ where: { userId: actor.id, usedAt: null }, data: { usedAt: new Date() } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'profile.password_changed', entity: 'User', entityId: actor.id } });
+    return { success: true };
+  });
 }
 
 export async function createStaff(role, actorId, input) {

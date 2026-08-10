@@ -6,6 +6,7 @@ import Topbar from './components/Topbar';
 import Overview from './components/Overview';
 import IntakeModal from './components/IntakeModal';
 import LoginScreen from './components/LoginScreen';
+import SettingsView from './components/SettingsView';
 import { AppointmentsView, RepairsView, InventoryView, SalesView, CustomersView, ReportsView, TeamView } from './components/ModuleViews';
 
 async function apiRequest(path, token, options = {}) {
@@ -51,6 +52,10 @@ export default function HomePage() {
     setError('');
     try { return await apiRequest('/api/password/forgot', null, { method: 'POST', body: JSON.stringify({ email }) }); }
     catch (requestError) { setError(requestError.message); throw requestError; }
+  };
+  const emailPasswordReset = async (email) => {
+    try { const result = await apiRequest('/api/password/forgot', null, { method: 'POST', body: JSON.stringify({ email }) }); notify(result.message, 5000); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
   };
   const logout = () => { localStorage.removeItem('ifixlab_token'); setToken(null); setUser(null); setRole(null); setWorkspace(null); setActive('Overview'); setError(''); };
 
@@ -106,6 +111,15 @@ export default function HomePage() {
     try { await apiRequest('/api/users', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Staff account deactivated'); }
     catch (requestError) { setError(requestError.message); }
   };
+  const updateProfile = async (form) => {
+    try { await apiRequest('/api/profile', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify('Profile updated'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const changePassword = async (form) => {
+    if (form.newPassword !== form.confirmPassword) { setError('New passwords do not match'); return false; }
+    try { await apiRequest('/api/profile/password', token, { method: 'PATCH', body: JSON.stringify(form) }); notify('Password changed successfully'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
 
   const reviewAppointment = async (id, action) => {
     try {
@@ -144,7 +158,7 @@ export default function HomePage() {
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
   const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} /> };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} />

@@ -5,6 +5,7 @@ import './customer.css';
 import './delivery.css';
 import './inventory.css';
 import './repair-progress.css';
+import './settings.css';
 
 export const metadata = {
   title: 'iFixLab251 | Repair Operations',

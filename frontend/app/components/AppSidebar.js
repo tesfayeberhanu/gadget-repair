@@ -1,4 +1,4 @@
-const icons = { Overview: '⌂', Repairs: '⌁', Inventory: '□', 'Point of Sale': '◇', Customers: '♙', Reports: '↗', Team: '♧', 'New Intake': '＋', Appointments: '◷' };
+const icons = { Overview: '⌂', Repairs: '⌁', Inventory: '□', 'Point of Sale': '◇', Customers: '♙', Reports: '↗', Team: '♧', Settings: '⚙', 'New Intake': '＋', Appointments: '◷' };
 
 export default function AppSidebar({ role, user, active, navigation, repairs, setActive, openIntake, logout }) {
   return <aside className="sidebar">
