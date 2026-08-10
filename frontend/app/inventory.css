@@ -7,3 +7,8 @@
 .inventory-actions { display: flex; gap: 14px; }
 .inventory-actions button { border: 0; background: transparent; color: #087dca; padding: 0; font-weight: 600; white-space: nowrap; }
 .inventory-actions button.delete { color: #d74634; }
+.inventory-tabs { display: flex; gap: 5px; width: fit-content; padding: 5px; margin-bottom: 16px; }
+.inventory-tabs button { border: 0; background: transparent; color: #66798c; padding: 9px 14px; border-radius: 6px; font-weight: 700; }
+.inventory-tabs button.active { background: #087dcc; color: white; }
+.inventory-tabs b { margin-left: 6px; padding: 2px 6px; border-radius: 10px; background: #e6edf3; color: #52677b; font-size: 9px; }
+.inventory-tabs button.active b { background: #ffffff2c; color: white; }

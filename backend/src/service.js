@@ -32,6 +32,7 @@ function serializeRepair(ticket, role, actorId = null) {
     condition: ticket.physicalCondition,
     notes: ticket.technicianNotes || '',
     progress: Math.max(ticket.progress || 0, minimumProgress[ticket.status] || 0),
+    usedParts: (ticket.usedParts || []).map((item) => ({ id: item.part.id, sku: item.part.sku, name: item.part.name, quantity: item.quantity })),
     status: statusLabel[ticket.status],
     tech: ticket.assignedTech?.name || 'Unassigned',
     due: ticket.status === 'DELIVERED' ? 'Ready for pickup' : 'Not scheduled',
@@ -124,7 +125,7 @@ export async function getWorkspace(role, actorId) {
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
   const [tickets, parts, sales, team, appointments] = await Promise.all([
-    prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } }, delivery: { include: { deliveredBy: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } }),
+    prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } }, delivery: { include: { deliveredBy: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' && !actor.permissions.includes('MANAGE_POS') ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
     role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true }, orderBy: { createdAt: 'asc' } }) : [],
@@ -367,7 +368,7 @@ export async function updateRepairProgress(role, actorId, input) {
   const notes = String(input.notes || '').trim();
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber: input.id }, include: { assignedTech: { select: { name: true } } } });
+    const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber: input.id }, include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } } });
     if (!ticket) throw new Error('NOT_FOUND');
 
     if (action === 'take') {
@@ -375,7 +376,7 @@ export async function updateRepairProgress(role, actorId, input) {
       const updated = await tx.repairTicket.update({
         where: { id: ticket.id },
         data: { assignedTechId: actor.id, status: 'IN_PROGRESS', progress: 10, ...(notes ? { technicianNotes: notes } : {}) },
-        include: { assignedTech: { select: { name: true } } },
+        include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } },
       });
       await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.taken', entity: 'RepairTicket', entityId: ticket.id } });
       return serializeRepair(updated, role, actor.id);
@@ -384,10 +385,19 @@ export async function updateRepairProgress(role, actorId, input) {
     if (action !== 'progress' || ticket.assignedTechId !== actor.id || ['DELIVERED', 'PICKED_UP'].includes(ticket.status)) throw new Error('FORBIDDEN');
     const progress = Number(input.progress);
     if (!Number.isInteger(progress) || progress < ticket.progress || progress < 10 || progress > 100) throw new Error('INVALID_PROGRESS');
+    const partId = String(input.partId || '');
+    const partQuantity = Number(input.partQuantity || 0);
+    if (progress >= 70 && ticket.usedParts.length === 0 && !partId) throw new Error('REPAIR_PART_REQUIRED');
+    if (partId) {
+      if (!Number.isInteger(partQuantity) || partQuantity < 1) throw new Error('INVALID_PART_QUANTITY');
+      const deducted = await tx.part.updateMany({ where: { id: partId, stockQty: { gte: partQuantity } }, data: { stockQty: { decrement: partQuantity } } });
+      if (deducted.count !== 1) throw new Error('INSUFFICIENT_PART_STOCK');
+      await tx.ticketPart.upsert({ where: { ticketId_partId: { ticketId: ticket.id, partId } }, create: { ticketId: ticket.id, partId, quantity: partQuantity }, update: { quantity: { increment: partQuantity } } });
+    }
     const updated = await tx.repairTicket.update({
       where: { id: ticket.id },
       data: { progress, status: repairStatusForProgress(progress), ...(notes ? { technicianNotes: notes } : {}) },
-      include: { assignedTech: { select: { name: true } } },
+      include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } },
     });
     await tx.auditLog.create({ data: { userId: actor.id, action: progress === 100 ? 'repair.ready_for_pickup' : 'repair.progress_updated', entity: 'RepairTicket', entityId: ticket.id } });
     return serializeRepair(updated, role, actor.id);
