@@ -1,0 +1,3 @@
+ALTER TABLE "RepairTicket"
+ADD COLUMN "technicianNotes" TEXT,
+ADD COLUMN "progress" INTEGER NOT NULL DEFAULT 0;

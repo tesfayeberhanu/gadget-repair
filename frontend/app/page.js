@@ -72,6 +72,10 @@ export default function HomePage() {
     try { await apiRequest('/api/repairs', token, { method: 'PATCH', body: JSON.stringify({ action: 'advance', id }) }); await loadWorkspace(); notify('Ticket status updated and audit logged by server'); }
     catch (requestError) { setError(requestError.message); }
   };
+  const saveRepairProgress = async (form) => {
+    try { await apiRequest('/api/repairs', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify(form.action === 'take' ? 'Job assigned to you' : form.progress === 100 ? 'Repair is ready for pickup' : `Progress updated to ${form.progress}%`); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
 
   const createStaff = async (form) => {
     try { await apiRequest('/api/users', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Staff account created'); return true; }
@@ -117,7 +121,7 @@ export default function HomePage() {
   if (!token) return <LoginScreen login={login} error={error} />;
 
   const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} /> };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} /> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} />

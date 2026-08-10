@@ -66,6 +66,8 @@ model RepairTicket {
   serialOrImei      String?
   physicalCondition String?
   reportedIssue     String
+  technicianNotes   String?
+  progress          Int          @default(0)
   status            TicketStatus @default(PENDING)
   estimatedCost     Decimal      @db.Decimal(10, 2)
 

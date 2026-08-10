@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { Metric, money, PageHead, RevenueCard, Status } from './SharedUI';
 
-export function RepairsView({ repairs, search, setSearch, role, updateStatus, confirmDelivery }) {
+export function RepairsView({ repairs, search, setSearch, role, updateStatus, saveRepairProgress, confirmDelivery }) {
   const [deliveryTicket, setDeliveryTicket] = useState(null);
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
+  const [detailTicket, setDetailTicket] = useState(null);
+  const [progressValue, setProgressValue] = useState(10);
+  const [savingProgress, setSavingProgress] = useState(false);
+  const progressStatus = (progress) => progress >= 100 ? 'Ready for Pickup' : progress >= 70 ? 'In Repair' : progress >= 40 ? 'Repair Approved' : progress > 0 ? 'Diagnosing' : 'Received';
   const submitDelivery = async (event) => {
     event.preventDefault();
     if (confirmingDelivery) return;
@@ -12,6 +16,17 @@ export function RepairsView({ repairs, search, setSearch, role, updateStatus, co
     if (await confirmDelivery(deliveryTicket.id, password)) setDeliveryTicket(null);
     setConfirmingDelivery(false);
   };
+  const openRepairDetail = (repair) => { setDetailTicket(repair); setProgressValue(Math.max(10, repair.progress || 0)); };
+  const submitRepairProgress = async (event) => {
+    event.preventDefault();
+    if (savingProgress) return;
+    setSavingProgress(true);
+    const data = new FormData(event.currentTarget);
+    const action = detailTicket.isMine ? 'progress' : 'take';
+    const saved = await saveRepairProgress({ id: detailTicket.id, action, notes: data.get('notes'), ...(action === 'progress' ? { progress: Number(data.get('progress')) } : {}) });
+    if (saved) setDetailTicket(null);
+    setSavingProgress(false);
+  };
   if (role === 'Technician') {
     const mine = repairs.filter((repair) => repair.isMine && !['Ready for Pickup', 'Delivered'].includes(repair.status));
     const available = repairs.filter((repair) => !repair.isMine && repair.status === 'Received');
@@ -19,11 +34,13 @@ export function RepairsView({ repairs, search, setSearch, role, updateStatus, co
     const RepairRows = ({ items, action }) => items.length ? items.map((repair) => <tr key={repair.id}>
       <td><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></td>
       <td><strong>{repair.device}</strong><small>{repair.issue}</small></td>
-      <td><Status value={repair.status}/></td><td>{repair.tech}</td>
-      {action && <td><button className="table-action" onClick={() => updateStatus(repair.id)}>{repair.status === 'Received' ? 'Take job' : 'Update'} →</button></td>}
-    </tr>) : <tr><td colSpan="5" className="empty">No repairs in this section.</td></tr>;
-    const Queue = ({ title, items, action }) => <section className="card table-card technician-queue"><div className="panel-title"><div><h2>{title}</h2><p>{items.length} repair{items.length === 1 ? '' : 's'}</p></div></div><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Assigned to</th>{action && <th>Action</th>}</tr></thead><tbody><RepairRows items={items} action={action}/></tbody></table></div></section>;
-    return <><PageHead eyebrow="TECHNICIAN WORKSPACE" title="Repair management"><span className="head-count">Assigned work and available jobs</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search my repairs"/></div></div><Queue title="My in-progress repairs" items={mine} action/><Queue title="Available repairs" items={available} action/><Queue title="My repair history" items={history}/></>;
+      <td><Status value={repair.status}/></td><td><div className="progress-cell"><span className="progress-track"><i style={{ width: `${repair.progress || 0}%` }}/></span><b>{repair.progress || 0}%</b></div></td><td>{repair.tech}</td>
+      {action && <td><button className="table-action" onClick={() => openRepairDetail(repair)}>{repair.isMine ? 'View / update' : 'Review & take'} →</button></td>}
+    </tr>) : <tr><td colSpan={action ? 6 : 5} className="empty">No repairs in this section.</td></tr>;
+    const Queue = ({ title, items, action }) => <section className="card table-card technician-queue"><div className="panel-title"><div><h2>{title}</h2><p>{items.length} repair{items.length === 1 ? '' : 's'}</p></div></div><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Progress</th><th>Assigned to</th>{action && <th>Action</th>}</tr></thead><tbody><RepairRows items={items} action={action}/></tbody></table></div></section>;
+    return <><PageHead eyebrow="TECHNICIAN WORKSPACE" title="Repair management"><span className="head-count">Received → Diagnosing → Repair Approved → In Repair → Ready for Pickup</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search my repairs"/></div></div><Queue title="My in-progress repairs" items={mine} action/><Queue title="Available repairs" items={available} action/><Queue title="My repair history" items={history}/>
+      {detailTicket && <div className="modal-backdrop"><div className="modal card repair-detail-modal"><div className="modal-head"><div><p>REPAIR QUEUE › DETAIL</p><h2>Repair Detail</h2></div><button type="button" onClick={() => setDetailTicket(null)} disabled={savingProgress}>×</button></div><div className="repair-detail-grid"><section className="repair-detail-panel"><h3>⌕ &nbsp; Device Information</h3><dl className="repair-facts"><dt>Repair ID</dt><dd>{detailTicket.id}</dd><dt>Customer</dt><dd>{detailTicket.customer}</dd><dt>Phone</dt><dd>{detailTicket.phone}</dd><dt>Device</dt><dd>{detailTicket.device}</dd><dt>IMEI / Serial</dt><dd>{detailTicket.imei || 'Not recorded'}</dd><dt>Intake Date</dt><dd>{new Date(detailTicket.createdAt).toLocaleString()}</dd><dt>Assigned To</dt><dd>{detailTicket.tech}</dd><dt>Estimate</dt><dd>{money(detailTicket.estimatedCost)}</dd></dl><div className="repair-issue"><strong>ISSUE DESCRIPTION</strong><p>{detailTicket.issue}</p>{detailTicket.condition && <small>Condition: {detailTicket.condition}</small>}</div></section><section className="repair-detail-panel update"><h3>✎ &nbsp; {detailTicket.isMine ? 'Update Repair Progress' : 'Review and Take Job'}</h3><form className="repair-update-form" onSubmit={submitRepairProgress}><label>Technician Comments<textarea name="notes" defaultValue={detailTicket.notes} placeholder="Add diagnosis, work completed, or other repair notes…" /></label>{detailTicket.isMine && <label>Repair Progress<div className="progress-editor"><input name="progress" type="range" min={Math.max(10, detailTicket.progress || 0)} max="100" step="5" value={progressValue} onChange={(event) => setProgressValue(Number(event.target.value))}/><output>{progressValue}%</output></div><span className="progress-status-preview">Status: <strong>{progressStatus(progressValue)}</strong></span><small>100% marks the device ready for pickup.</small></label>}<button className="primary" disabled={savingProgress}>{savingProgress ? 'Saving…' : detailTicket.isMine ? progressValue === 100 ? 'Mark Ready for Pickup' : 'Save Progress' : 'Take The Job'}</button></form></section></div></div></div>}
+    </>;
   }
   return <><PageHead eyebrow="OPERATIONS" title="Repairs queue"><span className="head-count">{repairs.length} tickets</span></PageHead><div className="toolbar card"><div className="search-inner">⌕<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by customer, IMEI or ticket ID"/></div><select><option>All statuses</option><option>Received</option><option>Diagnosing</option><option>Repair Approved</option><option>In Repair</option><option>Ready for Pickup</option><option>Delivered</option></select></div><section className="card table-card full-table"><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Assigned to</th><th>Estimate</th><th>Action</th></tr></thead><tbody>{repairs.map((repair) => <tr key={repair.id}><td><div className="customer"><span className="avatar small">{repair.avatar}</span><div><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></div></div></td><td><strong>{repair.device}</strong><small>{repair.issue}</small></td><td><Status value={repair.status}/>{repair.delivery && <small>By {repair.delivery.deliveredBy} · {new Date(repair.delivery.deliveredAt).toLocaleString()}</small>}</td><td>{repair.tech}</td><td>{money(repair.total)}</td><td>{role === 'Front Desk' && repair.status === 'Ready for Pickup' ? <button className="primary delivery-button" onClick={() => setDeliveryTicket(repair)}>Confirm delivery</button> : <span className="readonly">{repair.status === 'Delivered' ? 'Delivery recorded' : 'Read only'}</span>}</td></tr>)}</tbody></table></div></section>
     {deliveryTicket && <div className="modal-backdrop"><form className="modal card delivery-modal" onSubmit={submitDelivery}><div className="modal-head"><div><p>SECURE HANDOVER</p><h2>Confirm delivery</h2><small>Your account will be recorded as the staff signature.</small></div><button type="button" onClick={() => setDeliveryTicket(null)} disabled={confirmingDelivery}>×</button></div><div className="delivery-summary"><strong>{deliveryTicket.id}</strong><span>{deliveryTicket.customer}</span><span>{deliveryTicket.device}</span><span>{deliveryTicket.tech}</span></div><label className="delivery-password">Your password<input name="password" type="password" autoComplete="current-password" required autoFocus placeholder="Re-enter your password"/></label><div className="modal-actions"><button type="button" className="outline" onClick={() => setDeliveryTicket(null)} disabled={confirmingDelivery}>Cancel</button><button className="primary" disabled={confirmingDelivery}>{confirmingDelivery ? 'Confirming…' : 'Confirm delivery'}</button></div></form></div>}

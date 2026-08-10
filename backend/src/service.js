@@ -15,6 +15,7 @@ const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FO
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
 const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
+const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : progress >= 70 ? 'COMPLETED' : progress >= 40 ? 'WAITING_FOR_PARTS' : 'IN_PROGRESS';
 
 function serializeRepair(ticket, role, actorId = null) {
   const name = ticket.customerName;
@@ -27,10 +28,14 @@ function serializeRepair(ticket, role, actorId = null) {
     device: ticket.deviceModel,
     issue: ticket.reportedIssue,
     condition: ticket.physicalCondition,
+    notes: ticket.technicianNotes || '',
+    progress: ticket.progress,
     status: statusLabel[ticket.status],
     tech: ticket.assignedTech?.name || 'Unassigned',
     due: ticket.status === 'DELIVERED' ? 'Ready for pickup' : 'Not scheduled',
     total: role === 'Technician' ? null : Number(ticket.estimatedCost),
+    estimatedCost: Number(ticket.estimatedCost),
+    createdAt: ticket.createdAt,
     isMine: Boolean(actorId && ticket.assignedTechId === actorId),
     delivery: ticket.delivery ? { deliveredBy: ticket.delivery.deliveredBy.name, deliveredAt: ticket.delivery.deliveredAt, paymentStatus: paymentLabel[ticket.delivery.paymentStatus] } : null,
     avatar: name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
@@ -269,6 +274,39 @@ export async function advanceRepair(role, actorId, ticketNumber) {
     });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.status_changed', entity: 'RepairTicket', entityId: ticket.id } });
     return serializeRepair(updated, role);
+  });
+}
+
+export async function updateRepairProgress(role, actorId, input) {
+  requireRole(role, ['Technician']);
+  const action = input.action;
+  const notes = String(input.notes || '').trim();
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber: input.id }, include: { assignedTech: { select: { name: true } } } });
+    if (!ticket) throw new Error('NOT_FOUND');
+
+    if (action === 'take') {
+      if (ticket.status !== 'PENDING' || ticket.assignedTechId) throw new Error('JOB_UNAVAILABLE');
+      const updated = await tx.repairTicket.update({
+        where: { id: ticket.id },
+        data: { assignedTechId: actor.id, status: 'IN_PROGRESS', progress: 10, ...(notes ? { technicianNotes: notes } : {}) },
+        include: { assignedTech: { select: { name: true } } },
+      });
+      await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.taken', entity: 'RepairTicket', entityId: ticket.id } });
+      return serializeRepair(updated, role, actor.id);
+    }
+
+    if (action !== 'progress' || ticket.assignedTechId !== actor.id || ['DELIVERED', 'PICKED_UP'].includes(ticket.status)) throw new Error('FORBIDDEN');
+    const progress = Number(input.progress);
+    if (!Number.isInteger(progress) || progress < ticket.progress || progress < 10 || progress > 100) throw new Error('INVALID_PROGRESS');
+    const updated = await tx.repairTicket.update({
+      where: { id: ticket.id },
+      data: { progress, status: repairStatusForProgress(progress), ...(notes ? { technicianNotes: notes } : {}) },
+      include: { assignedTech: { select: { name: true } } },
+    });
+    await tx.auditLog.create({ data: { userId: actor.id, action: progress === 100 ? 'repair.ready_for_pickup' : 'repair.progress_updated', entity: 'RepairTicket', entityId: ticket.id } });
+    return serializeRepair(updated, role, actor.id);
   });
 }
 
