@@ -34,3 +34,6 @@
 .progress-status-preview strong { color: #0878c4; }
 .repair-update-form .primary { width: 100%; }
 @media(max-width:800px){.repair-detail-grid{grid-template-columns:1fr}.repair-detail-modal{max-height:calc(100vh - 20px)}}
+.notification-bell { width: 44px; height: 44px; display: grid; place-items: center; }
+.notification-bell > span { font-size: 21px; line-height: 1; }
+.notification-bell i { min-width: 17px; min-height: 17px; display: grid; place-items: center; }
