@@ -34,7 +34,7 @@ export function RepairsView({ repairs, search, setSearch, role, updateStatus, sa
     const RepairRows = ({ items, action }) => items.length ? items.map((repair) => <tr key={repair.id}>
       <td><strong>{repair.id}</strong><small>{repair.customer} · {repair.phone}</small></td>
       <td><strong>{repair.device}</strong><small>{repair.issue}</small></td>
-      <td><Status value={repair.status}/></td><td><div className="progress-cell"><span className="progress-track"><i style={{ width: `${repair.progress || 0}%` }}/></span><b>{repair.progress || 0}%</b></div></td><td>{repair.tech}</td>
+      <td><Status value={repair.status}/></td><td><div className="progress-cell"><span className={`progress-track progress-${progressStatus(repair.progress || 0).toLowerCase().replaceAll(' ', '-')}`}><i style={{ width: `${repair.progress || 0}%` }}/></span><b>{repair.progress || 0}%</b></div></td><td>{repair.tech}</td>
       {action && <td><button className="table-action" onClick={() => openRepairDetail(repair)}>{repair.isMine ? 'View / update' : 'Review & take'} →</button></td>}
     </tr>) : <tr><td colSpan={action ? 6 : 5} className="empty">No repairs in this section.</td></tr>;
     const Queue = ({ title, items, action }) => <section className="card table-card technician-queue"><div className="panel-title"><div><h2>{title}</h2><p>{items.length} repair{items.length === 1 ? '' : 's'}</p></div></div><div className="table-scroll"><table><thead><tr><th>Ticket & customer</th><th>Device / issue</th><th>Status</th><th>Progress</th><th>Assigned to</th>{action && <th>Action</th>}</tr></thead><tbody><RepairRows items={items} action={action}/></tbody></table></div></section>;

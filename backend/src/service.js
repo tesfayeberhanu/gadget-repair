@@ -1,5 +1,6 @@
 import { prisma } from './prisma.js';
 import { createSession, hashPassword, requireRole, verifyPassword } from './auth.js';
+import { createHash, randomBytes } from 'node:crypto';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team'],
@@ -62,6 +63,57 @@ export async function login(email, password) {
   const user = await prisma.user.findUnique({ where: { email: String(email || '').trim().toLowerCase() } });
   if (!user || !user.active || !verifyPassword(String(password || ''), user.password)) throw new Error('INVALID_CREDENTIALS');
   return { token: createSession(user), user: { name: user.name, role: roleLabel[user.role] || user.role } };
+}
+
+const resetTokenHash = (token) => createHash('sha256').update(token).digest('hex');
+const escapeHtml = (value) => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+
+async function sendPasswordResetEmail(user, resetUrl) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    if (process.env.NODE_ENV === 'production') throw new Error('EMAIL_NOT_CONFIGURED');
+    return false;
+  }
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from: process.env.RESET_EMAIL_FROM || 'iFixLab251 <onboarding@resend.dev>',
+      to: [user.email],
+      subject: 'Reset your iFixLab251 password',
+      html: `<p>Hello ${escapeHtml(user.name)},</p><p>Use the secure link below to reset your password. It expires in 30 minutes and can only be used once.</p><p><a href="${resetUrl}">Reset password</a></p><p>If you did not request this, you can ignore this email.</p>`,
+    }),
+  });
+  if (!response.ok) throw new Error('EMAIL_DELIVERY_FAILED');
+  return true;
+}
+
+export async function requestPasswordReset(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  const user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (!user || !user.active) return { message: 'If that account exists, a reset link has been sent.' };
+  const token = randomBytes(32).toString('base64url');
+  await prisma.passwordResetToken.create({ data: { tokenHash: resetTokenHash(token), userId: user.id, expiresAt: new Date(Date.now() + 30 * 60 * 1000) } });
+  const appUrl = (process.env.FRONTEND_URL || process.env.FRONTEND_ORIGIN || 'http://localhost:3002').split(',')[0].replace(/\/$/, '');
+  const resetUrl = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
+  await sendPasswordResetEmail(user, resetUrl);
+  return { message: 'If that account exists, a reset link has been sent.', ...(process.env.NODE_ENV !== 'production' && !process.env.RESEND_API_KEY ? { resetUrl } : {}) };
+}
+
+export async function resetPassword(input) {
+  const token = String(input.token || '');
+  const password = String(input.password || '');
+  if (!token || password.length < 10) throw new Error('INVALID_PASSWORD_RESET');
+  await prisma.$transaction(async (tx) => {
+    const record = await tx.passwordResetToken.findUnique({ where: { tokenHash: resetTokenHash(token) } });
+    if (!record) throw new Error('INVALID_RESET_TOKEN');
+    const claimed = await tx.passwordResetToken.updateMany({ where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() } });
+    if (claimed.count !== 1) throw new Error('INVALID_RESET_TOKEN');
+    await tx.user.update({ where: { id: record.userId }, data: { password: hashPassword(password) } });
+    await tx.passwordResetToken.updateMany({ where: { userId: record.userId, usedAt: null }, data: { usedAt: new Date() } });
+    await tx.auditLog.create({ data: { userId: record.userId, action: 'auth.password_reset', entity: 'User', entityId: record.userId } });
+  });
+  return { success: true };
 }
 
 export async function getWorkspace(role, actorId) {

@@ -39,6 +39,18 @@ and are never stored in source control:
 Set `AUTH_SECRET` to a long random production secret used to sign eight-hour
 staff sessions. Rerunning `npm run db:seed` updates the three account passwords.
 
+## Password reset email
+
+Password reset links expire after 30 minutes and can only be used once. Configure
+the backend with these environment variables in production:
+
+- `RESEND_API_KEY` — API key used to deliver reset emails
+- `RESET_EMAIL_FROM` — verified sender, for example `iFixLab251 <support@example.com>`
+- `FRONTEND_URL` — public frontend URL used in reset links
+
+Without `RESEND_API_KEY`, local development returns a visible test reset link.
+Production refuses reset requests until email delivery is configured.
+
 ## Project structure
 
 - `frontend/app/page.js` — role-aware dashboard and interactive workflows

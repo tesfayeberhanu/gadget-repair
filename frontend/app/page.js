@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import AppSidebar from './components/AppSidebar';
 import Topbar from './components/Topbar';
 import Overview from './components/Overview';
@@ -26,6 +26,7 @@ export default function HomePage() {
   const [showIntake, setShowIntake] = useState(false);
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
+  const availableRepairIds = useRef(null);
 
   const notify = (message, duration = 2200) => { setToast(message); window.setTimeout(() => setToast(''), duration); };
   const loadWorkspace = async (sessionToken = token) => {
@@ -46,9 +47,15 @@ export default function HomePage() {
       localStorage.setItem('ifixlab_token', session.token); setToken(session.token); setUser(session.user); setRole(session.user.role); await loadWorkspace(session.token);
     } catch (requestError) { setError(requestError.message); }
   };
+  const forgotPassword = async (email) => {
+    setError('');
+    try { return await apiRequest('/api/password/forgot', null, { method: 'POST', body: JSON.stringify({ email }) }); }
+    catch (requestError) { setError(requestError.message); throw requestError; }
+  };
   const logout = () => { localStorage.removeItem('ifixlab_token'); setToken(null); setUser(null); setRole(null); setWorkspace(null); setActive('Overview'); setError(''); };
 
   const repairs = workspace?.repairs || [];
+  const unassignedRepairs = role === 'Technician' ? repairs.filter((repair) => repair.status === 'Received' && !repair.isMine) : [];
   const filteredRepairs = useMemo(() => { const query = search.toLowerCase(); return repairs.filter((repair) => Object.values(repair).join(' ').toLowerCase().includes(query)); }, [repairs, search]);
   const openIntake = () => { if (role !== 'Front Desk') return notify('Device intake is available to Front Desk only'); setShowIntake(true); setActive('New Intake'); };
   const closeIntake = () => { setShowIntake(false); setActive('Overview'); };
@@ -117,15 +124,31 @@ export default function HomePage() {
     } catch (requestError) { setError(requestError.message); return false; }
   };
 
+  useEffect(() => {
+    if (!token || role !== 'Technician' || !workspace) { availableRepairIds.current = null; return undefined; }
+    availableRepairIds.current = new Set(unassignedRepairs.map((repair) => repair.id));
+    const poll = window.setInterval(async () => {
+      try {
+        const next = await apiRequest('/api/workspace', token);
+        const nextAvailable = next.repairs.filter((repair) => repair.status === 'Received' && !repair.isMine);
+        const arrivals = availableRepairIds.current ? nextAvailable.filter((repair) => !availableRepairIds.current.has(repair.id)) : [];
+        if (arrivals.length) notify(`${arrivals.length} new repair${arrivals.length === 1 ? '' : 's'} arrived`, 5000);
+        availableRepairIds.current = new Set(nextAvailable.map((repair) => repair.id));
+        setWorkspace(next); setRole(next.role); setUser(next.user);
+      } catch { /* Keep the current workspace; normal API actions surface errors. */ }
+    }, 15000);
+    return () => window.clearInterval(poll);
+  }, [token, role]);
+
   if (token === undefined || (token && !workspace && !error)) return <div className="loading-screen"><span className="loader"></span><p>Loading iFixLab251 workspace…</p></div>;
-  if (!token) return <LoginScreen login={login} error={error} />;
+  if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
   const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], appointments: workspace?.appointments || [], setActive, openIntake };
   const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} notify={notify} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} /> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} />
-    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} openIntake={openIntake}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
+    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} openIntake={openIntake} notificationCount={unassignedRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
     {showIntake && <IntakeModal close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
   </div>;
 }

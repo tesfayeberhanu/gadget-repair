@@ -1,6 +1,15 @@
 .progress-cell { display: flex; align-items: center; gap: 8px; min-width: 120px; }
 .progress-track { width: 82px; height: 7px; overflow: hidden; border-radius: 20px; background: #e5ebf0; }
-.progress-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #079ce9, #20b878); }
+.progress-track i { display: block; height: 100%; border-radius: inherit; background: #98a6b3; transition: width .2s ease; }
+.progress-track.progress-diagnosing i { background: #078fe5; }
+.progress-track.progress-repair-approved i { background: #eea736; }
+.progress-track.progress-in-repair i { background: #7857c5; }
+.progress-track.progress-ready-for-pickup i { background: #20b878; }
+.status.received { background: #edf0f3; color: #657482; }
+.status.diagnosing { background: #e5f4ff; color: #0878c4; }
+.status.repair-approved { background: #fff3df; color: #bd7711; }
+.status.in-repair { background: #f0eaff; color: #6844b2; }
+.status.ready-for-pickup { background: #e6f8ef; color: #168c5c; }
 .progress-cell b { font-size: 10px; color: #3f5368; }
 .repair-detail-modal { width: min(980px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; }
 .repair-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
