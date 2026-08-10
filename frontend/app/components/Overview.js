@@ -16,7 +16,7 @@ export default function Overview({ role, repairs, inventory, sales, dashboard, o
   </>;
 
   return <>
-    <PageHead eyebrow="TUESDAY, AUGUST 4" title="Good morning, Alex"><select className="period"><option>This month</option><option>This week</option><option>This year</option></select></PageHead>
+    <PageHead eyebrow="TUESDAY, AUGUST 4" title="Good morning, Alex"><span className="head-count">Current overview</span></PageHead>
     <div className="metric-grid"><Metric icon="Br" tone="green" label="Total revenue" value={`ETB ${Number(dashboard.totalRevenue || 0).toLocaleString('en-ET')}`} meta="Server-calculated"/><Metric icon="▥" tone="blue" label="Active repairs" value={dashboard.activeRepairs} meta="Live repair queue"/><Metric icon="✓" tone="violet" label="Ready this month" value={dashboard.completedThisMonth} meta="Server-calculated"/><Metric icon="!" tone="amber" label="Low stock items" value={dashboard.lowStock} meta="At or below threshold"/></div>
     <div className="dashboard-grid"><RevenueCard/><StatusCard repairs={repairs}/></div>
     <QueueCard repairs={repairs.slice(0, 4)} role={role} onView={() => setActive('Repairs')} />
