@@ -19,6 +19,7 @@ const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : pr
 
 function serializeRepair(ticket, role, actorId = null) {
   const name = ticket.customerName;
+  const minimumProgress = { PENDING: 0, IN_PROGRESS: 10, WAITING_FOR_PARTS: 40, COMPLETED: 70, DELIVERED: 100, PICKED_UP: 100 };
   return {
     id: ticket.ticketNumber,
     recordId: ticket.id,
@@ -29,7 +30,7 @@ function serializeRepair(ticket, role, actorId = null) {
     issue: ticket.reportedIssue,
     condition: ticket.physicalCondition,
     notes: ticket.technicianNotes || '',
-    progress: ticket.progress,
+    progress: Math.max(ticket.progress || 0, minimumProgress[ticket.status] || 0),
     status: statusLabel[ticket.status],
     tech: ticket.assignedTech?.name || 'Unassigned',
     due: ticket.status === 'DELIVERED' ? 'Ready for pickup' : 'Not scheduled',
