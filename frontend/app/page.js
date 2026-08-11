@@ -170,7 +170,7 @@ export default function HomePage() {
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} />
-    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} openIntake={openIntake} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
+    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
     {showIntake && <IntakeModal close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
   </div>;
 }

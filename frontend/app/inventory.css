@@ -12,3 +12,7 @@
 .inventory-tabs button.active { background: #087dcc; color: white; }
 .inventory-tabs b { margin-left: 6px; padding: 2px 6px; border-radius: 10px; background: #e6edf3; color: #52677b; font-size: 9px; }
 .inventory-tabs button.active b { background: #ffffff2c; color: white; }
+.inventory-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.inventory-controls > select { border: 1px solid var(--line); border-radius: 7px; background: white; padding: 9px 11px; color: var(--ink); font-weight: 600; }
+.page-actions { display: flex; align-items: center; gap: 10px; }
+@media(max-width:600px){.inventory-controls{align-items:stretch;flex-direction:column}.inventory-tabs{width:100%}.inventory-tabs button{flex:1}.page-actions{align-items:stretch;flex-direction:column}}
