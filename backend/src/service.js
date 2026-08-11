@@ -410,14 +410,19 @@ export async function updateRepairProgress(role, actorId, input) {
     if (action !== 'progress' || ticket.assignedTechId !== actor.id || ['DELIVERED', 'PICKED_UP'].includes(ticket.status)) throw new Error('FORBIDDEN');
     const progress = Number(input.progress);
     if (![25, 50, 75, 100].includes(progress) || progress < ticket.progress) throw new Error('INVALID_PROGRESS');
-    const partId = String(input.partId || '');
-    const partQuantity = Number(input.partQuantity || 0);
-    if (progress >= 75 && ticket.usedParts.length === 0 && !partId) throw new Error('REPAIR_PART_REQUIRED');
-    if (partId) {
-      if (!Number.isInteger(partQuantity) || partQuantity < 1) throw new Error('INVALID_PART_QUANTITY');
-      const deducted = await tx.part.updateMany({ where: { id: partId, stockQty: { gte: partQuantity } }, data: { stockQty: { decrement: partQuantity } } });
+    const requestedParts = Array.isArray(input.parts) ? input.parts : input.partId ? [{ id: input.partId, quantity: input.partQuantity }] : [];
+    const partQuantities = new Map();
+    for (const item of requestedParts) {
+      const partId = String(item.id || '');
+      const quantity = Number(item.quantity);
+      if (!partId || !Number.isInteger(quantity) || quantity < 1) throw new Error('INVALID_PART_QUANTITY');
+      partQuantities.set(partId, (partQuantities.get(partId) || 0) + quantity);
+    }
+    if (progress >= 75 && ticket.usedParts.length === 0 && partQuantities.size === 0) throw new Error('REPAIR_PART_REQUIRED');
+    for (const [partId, quantity] of partQuantities) {
+      const deducted = await tx.part.updateMany({ where: { id: partId, stockQty: { gte: quantity } }, data: { stockQty: { decrement: quantity } } });
       if (deducted.count !== 1) throw new Error('INSUFFICIENT_PART_STOCK');
-      await tx.ticketPart.upsert({ where: { ticketId_partId: { ticketId: ticket.id, partId } }, create: { ticketId: ticket.id, partId, quantity: partQuantity }, update: { quantity: { increment: partQuantity } } });
+      await tx.ticketPart.upsert({ where: { ticketId_partId: { ticketId: ticket.id, partId } }, create: { ticketId: ticket.id, partId, quantity }, update: { quantity: { increment: quantity } } });
     }
     const updated = await tx.repairTicket.update({
       where: { id: ticket.id },
