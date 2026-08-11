@@ -60,7 +60,7 @@ export default function HomePage() {
   const logout = () => { localStorage.removeItem('ifixlab_token'); setToken(null); setUser(null); setRole(null); setWorkspace(null); setActive('Overview'); setError(''); };
 
   const repairs = workspace?.repairs || [];
-  const unassignedRepairs = role === 'Technician' ? repairs.filter((repair) => repair.status === 'Received' && !repair.isMine) : [];
+  const assignedNewRepairs = role === 'Technician' ? repairs.filter((repair) => repair.status === 'Received' && repair.isMine) : [];
   const filteredRepairs = useMemo(() => { const query = search.toLowerCase(); return repairs.filter((repair) => Object.values(repair).join(' ').toLowerCase().includes(query)); }, [repairs, search]);
   const openIntake = () => { if (role !== 'Front Desk') return notify('Device intake is available to Front Desk only'); setShowIntake(true); setActive('New Intake'); };
   const closeIntake = () => { setShowIntake(false); setActive('Overview'); };
@@ -88,9 +88,17 @@ export default function HomePage() {
     try { await apiRequest('/api/repairs', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify(form.action === 'take' ? 'Job assigned to you' : form.progress === 100 ? 'Repair is ready for pickup' : `Progress updated to ${form.progress}%`); return true; }
     catch (requestError) { setError(requestError.message); return false; }
   };
+  const assignRepair = async (form) => {
+    try { await apiRequest('/api/repairs', token, { method: 'PATCH', body: JSON.stringify({ ...form, action: 'assign' }) }); await loadWorkspace(); notify('Repair assigned to technician'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
 
   const createStaff = async (form) => {
     try { await apiRequest('/api/users', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Staff account created'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const updateStaff = async (form) => {
+    try { await apiRequest('/api/users', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify('Staff account updated'); return true; }
     catch (requestError) { setError(requestError.message); return false; }
   };
   const createInventoryItem = async (form) => {
@@ -140,11 +148,11 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!token || role !== 'Technician' || !workspace) { availableRepairIds.current = null; return undefined; }
-    availableRepairIds.current = new Set(unassignedRepairs.map((repair) => repair.id));
+    availableRepairIds.current = new Set(assignedNewRepairs.map((repair) => repair.id));
     const poll = window.setInterval(async () => {
       try {
         const next = await apiRequest('/api/workspace', token);
-        const nextAvailable = next.repairs.filter((repair) => repair.status === 'Received' && !repair.isMine);
+        const nextAvailable = next.repairs.filter((repair) => repair.status === 'Received' && repair.isMine);
         const arrivals = availableRepairIds.current ? nextAvailable.filter((repair) => !availableRepairIds.current.has(repair.id)) : [];
         if (arrivals.length) notify(`${arrivals.length} new repair${arrivals.length === 1 ? '' : 's'} arrived`, 5000);
         availableRepairIds.current = new Set(nextAvailable.map((repair) => repair.id));
@@ -157,12 +165,12 @@ export default function HomePage() {
   if (token === undefined || (token && !workspace && !error)) return <div className="loading-screen"><span className="loader"></span><p>Loading iFixLab251 workspace…</p></div>;
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
-  const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} inventory={shared.inventory} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
+  const shared = { role, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], setActive, openIntake };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} />
-    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} openIntake={openIntake} notificationCount={unassignedRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
+    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} openIntake={openIntake} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
     {showIntake && <IntakeModal close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
   </div>;
 }

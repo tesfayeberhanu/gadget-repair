@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import { getSession } from './auth.js';
-import { advanceRepair, changePassword, confirmDelivery, createInventoryItem, createRepair, createStaff, deactivateStaff, deleteInventoryItem, getWorkspace, login, requestAppointment, requestPasswordReset, resetPassword, reviewAppointment, trackRepair, updateInventoryItem, updateProfile, updateRepairProgress } from './service.js';
+import { advanceRepair, assignRepair, changePassword, confirmDelivery, createInventoryItem, createRepair, createStaff, deactivateStaff, deleteInventoryItem, getWorkspace, login, requestAppointment, requestPasswordReset, resetPassword, reviewAppointment, trackRepair, updateInventoryItem, updateProfile, updateRepairProgress, updateStaff } from './service.js';
 
 const port = Number(process.env.PORT || process.env.BACKEND_PORT || 4000);
 const host = process.env.HOST || '0.0.0.0';
@@ -76,21 +76,25 @@ const server = createServer(async (request, response) => {
       const session = getSession(requestAdapter(request));
       return send(request, response, 201, await createStaff(session.role, session.sub, await readJson(request)));
     }
+    if (request.method === 'PATCH' && url.pathname === '/api/users') {
+      const session = getSession(requestAdapter(request));
+      return send(request, response, 200, await updateStaff(session.role, session.sub, await readJson(request)));
+    }
     if (request.method === 'DELETE' && url.pathname === '/api/users') {
       const session = getSession(requestAdapter(request));
       return send(request, response, 200, await deactivateStaff(session.role, session.sub, (await readJson(request)).id));
     }
     if (request.method === 'PATCH' && url.pathname === '/api/repairs') {
       const body = await readJson(request);
-      if (!body.id || !['advance', 'take', 'progress'].includes(body.action)) return send(request, response, 400, { error: 'A supported action and ticket ID are required' });
+      if (!body.id || !['advance', 'assign', 'take', 'progress'].includes(body.action)) return send(request, response, 400, { error: 'A supported action and ticket ID are required' });
       const session = getSession(requestAdapter(request));
-      return send(request, response, 200, body.action === 'advance' ? await advanceRepair(session.role, session.sub, body.id) : await updateRepairProgress(session.role, session.sub, body));
+      return send(request, response, 200, body.action === 'advance' ? await advanceRepair(session.role, session.sub, body.id) : body.action === 'assign' ? await assignRepair(session.role, session.sub, body) : await updateRepairProgress(session.role, session.sub, body));
     }
     return send(request, response, 404, { error: 'Route not found' });
   } catch (error) {
     const known = {
       UNAUTHORIZED: [401, 'Please sign in'], INVALID_CREDENTIALS: [401, 'Invalid email or password'], AUTH_NOT_CONFIGURED: [503, 'Authentication is not configured'], EMAIL_NOT_CONFIGURED: [503, 'Password reset email is not configured'], EMAIL_DELIVERY_FAILED: [502, 'The reset email could not be sent'], INVALID_PASSWORD_RESET: [400, 'Enter a password of at least 10 characters'], INVALID_RESET_TOKEN: [400, 'This reset link is invalid or has expired'], INVALID_PROFILE: [400, 'Enter a name and valid email address'], PROFILE_EMAIL_EXISTS: [409, 'That email address is already in use'], INVALID_NEW_PASSWORD: [400, 'The new password must be at least 10 characters'], INVALID_CURRENT_PASSWORD: [401, 'The current password is incorrect'], FORBIDDEN: [403, 'You do not have permission for this action'],
-      NOT_FOUND: [404, 'Record not found'], INVALID_STATUS: [400, 'Invalid ticket status transition'], INVALID_PROGRESS: [400, 'Progress must be between the current value and 100 percent'], REPAIR_PART_REQUIRED: [400, 'Select at least one part before moving the repair to In Repair'], INVALID_PART_QUANTITY: [400, 'Enter a valid part quantity'], INSUFFICIENT_PART_STOCK: [409, 'The selected part does not have enough stock'], JOB_UNAVAILABLE: [409, 'This job has already been taken'], INVALID_STAFF: [400, 'Name, valid email and a password of at least 10 characters are required'], INVALID_STAFF_ROLE: [400, 'Only Technician and Front Desk accounts can be created'], PROTECTED_ADMIN: [400, 'The Admin account cannot be deactivated'], INVALID_INVENTORY_ITEM: [400, 'Enter an item name, category, valid quantity, and unit price'], INVENTORY_SKU_EXISTS: [409, 'An inventory item with this SKU already exists'], INVENTORY_IN_USE: [409, 'This item is used by a repair and cannot be deleted'], INVALID_TRACKING: [400, 'Ticket number and matching phone number are required'], TRACKING_NOT_FOUND: [404, 'No matching repair was found'], INVALID_APPOINTMENT: [400, 'Complete all appointment fields and choose a future date'], INVALID_APPOINTMENT_ACTION: [400, 'Choose approve or reject'], APPOINTMENT_REVIEWED: [409, 'This appointment request has already been reviewed'], DELIVERY_AUTH_REQUIRED: [400, 'Enter your password to confirm delivery'], INVALID_DELIVERY_AUTH: [401, 'The password is incorrect'], NOT_READY_FOR_DELIVERY: [409, 'This repair is not ready for pickup'], ALREADY_DELIVERED: [409, 'This device has already been delivered'],
+      NOT_FOUND: [404, 'Record not found'], INVALID_STATUS: [400, 'Invalid ticket status transition'], INVALID_PROGRESS: [400, 'Choose a valid status that does not move the repair backward'], INVALID_ASSIGNMENT: [400, 'Choose an active technician'], REPAIR_PART_REQUIRED: [400, 'Select at least one part before moving the repair to In Repair'], INVALID_PART_QUANTITY: [400, 'Enter a valid part quantity'], INSUFFICIENT_PART_STOCK: [409, 'The selected part does not have enough stock'], JOB_UNAVAILABLE: [409, 'This job is no longer available'], JOB_NOT_ASSIGNED: [403, 'The Front Desk must assign this job to you first'], INVALID_STAFF: [400, 'Name, valid email and a password of at least 10 characters are required'], INVALID_STAFF_UPDATE: [400, 'Enter a name, valid email, and an optional password of at least 10 characters'], INVALID_STAFF_ROLE: [400, 'Only Technician and Front Desk accounts can be created'], PROTECTED_ADMIN: [400, 'The Admin account cannot be changed or deactivated here'], INVALID_INVENTORY_ITEM: [400, 'Enter an item name, category, valid quantity, and unit price'], INVENTORY_SKU_EXISTS: [409, 'An inventory item with this SKU already exists'], INVENTORY_IN_USE: [409, 'This item is used by a repair and cannot be deleted'], INVALID_TRACKING: [400, 'Ticket number and matching phone number are required'], TRACKING_NOT_FOUND: [404, 'No matching repair was found'], INVALID_APPOINTMENT: [400, 'Complete all appointment fields and choose a future date'], INVALID_APPOINTMENT_ACTION: [400, 'Choose approve or reject'], APPOINTMENT_REVIEWED: [409, 'This appointment request has already been reviewed'], DELIVERY_AUTH_REQUIRED: [400, 'Enter your password to confirm delivery'], INVALID_DELIVERY_AUTH: [401, 'The password is incorrect'], NOT_READY_FOR_DELIVERY: [409, 'This repair is not ready for pickup'], ALREADY_DELIVERED: [409, 'This device has already been delivered'],
     };
     const [status, message] = known[error.message] || [500, process.env.NODE_ENV === 'production' ? 'Unexpected server error' : error.message];
     return send(request, response, status, { error: message });

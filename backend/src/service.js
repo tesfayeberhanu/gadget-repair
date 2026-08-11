@@ -16,11 +16,11 @@ const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FO
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
 const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
-const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : progress >= 70 ? 'COMPLETED' : progress >= 40 ? 'WAITING_FOR_PARTS' : 'IN_PROGRESS';
+const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : progress >= 75 ? 'COMPLETED' : progress >= 50 ? 'WAITING_FOR_PARTS' : 'IN_PROGRESS';
 
 function serializeRepair(ticket, role, actorId = null) {
   const name = ticket.customerName;
-  const minimumProgress = { PENDING: 0, IN_PROGRESS: 10, WAITING_FOR_PARTS: 40, COMPLETED: 70, DELIVERED: 100, PICKED_UP: 100 };
+  const minimumProgress = { PENDING: 0, IN_PROGRESS: 25, WAITING_FOR_PARTS: 50, COMPLETED: 75, DELIVERED: 100, PICKED_UP: 100 };
   return {
     id: ticket.ticketNumber,
     recordId: ticket.id,
@@ -124,16 +124,17 @@ export async function getWorkspace(role, actorId) {
     const item = permissionNavigation[permission];
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
-  const [tickets, parts, sales, team, appointments] = await Promise.all([
+  const [tickets, parts, sales, team, appointments, technicians] = await Promise.all([
     prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } }, delivery: { include: { deliveredBy: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' && !actor.permissions.includes('MANAGE_POS') ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
     role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true }, orderBy: { createdAt: 'asc' } }) : [],
     role === 'Front Desk' ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
+    role === 'Front Desk' ? prisma.user.findMany({ where: { role: 'TECHNICIAN', active: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [],
   ]);
 
-  const visibleTickets = role === 'Technician' && !actor.permissions.includes('VIEW_CUSTOMERS')
-    ? tickets.filter((ticket) => ticket.assignedTechId === actor.id || (ticket.status === 'PENDING' && !ticket.assignedTechId))
+  const visibleTickets = role === 'Technician'
+    ? tickets.filter((ticket) => ticket.assignedTechId === actor.id)
     : tickets;
   const repairs = visibleTickets.map((ticket) => serializeRepair(ticket, role, actor?.id));
   const inventory = parts.map((part) => serializePart(part, role));
@@ -157,6 +158,7 @@ export async function getWorkspace(role, actorId) {
     inventory,
     sales: sales.map(serializeSale),
     appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: appointmentLabel[item.status] || item.status })),
+    technicians,
     team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: statusLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), permissions: user.permissions, description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
   };
 }
@@ -203,6 +205,29 @@ export async function createStaff(role, actorId, input) {
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.upsert({ where: { email }, update: { name, role: dbRole[staffRole], permissions, password: hashPassword(password), active: true }, create: { name, email, role: dbRole[staffRole], permissions, password: hashPassword(password), active: true } });
     await tx.auditLog.create({ data: { userId: actorId, action: 'staff.created_or_reactivated', entity: 'User', entityId: user.id } });
+    return { id: user.id, email: user.email, name: user.name, role: staffRole, permissions, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
+  });
+}
+
+export async function updateStaff(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const id = String(input.id || '');
+  const name = String(input.name || '').trim();
+  const email = String(input.email || '').trim().toLowerCase();
+  const password = String(input.password || '');
+  const staffRole = input.role;
+  const permissions = Array.isArray(input.permissions) ? input.permissions.filter((permission) => allowedPermissions.includes(permission)) : [];
+  if (!id || !name || !email.includes('@') || (password && password.length < 10)) throw new Error('INVALID_STAFF_UPDATE');
+  if (!['Technician', 'Front Desk'].includes(staffRole)) throw new Error('INVALID_STAFF_ROLE');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const target = await tx.user.findUnique({ where: { id } });
+    if (!target) throw new Error('NOT_FOUND');
+    if (target.role === 'ADMIN') throw new Error('PROTECTED_ADMIN');
+    const duplicate = await tx.user.findFirst({ where: { email, id: { not: id } }, select: { id: true } });
+    if (duplicate) throw new Error('PROFILE_EMAIL_EXISTS');
+    const user = await tx.user.update({ where: { id }, data: { name, email, role: dbRole[staffRole], permissions, ...(password ? { password: hashPassword(password) } : {}) } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'staff.updated', entity: 'User', entityId: user.id } });
     return { id: user.id, email: user.email, name: user.name, role: staffRole, permissions, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
   });
 }
@@ -372,10 +397,10 @@ export async function updateRepairProgress(role, actorId, input) {
     if (!ticket) throw new Error('NOT_FOUND');
 
     if (action === 'take') {
-      if (ticket.status !== 'PENDING' || ticket.assignedTechId) throw new Error('JOB_UNAVAILABLE');
+      if (ticket.status !== 'PENDING' || ticket.assignedTechId !== actor.id) throw new Error('JOB_NOT_ASSIGNED');
       const updated = await tx.repairTicket.update({
         where: { id: ticket.id },
-        data: { assignedTechId: actor.id, status: 'IN_PROGRESS', progress: 10, ...(notes ? { technicianNotes: notes } : {}) },
+        data: { status: 'IN_PROGRESS', progress: 25, ...(notes ? { technicianNotes: notes } : {}) },
         include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } },
       });
       await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.taken', entity: 'RepairTicket', entityId: ticket.id } });
@@ -384,10 +409,10 @@ export async function updateRepairProgress(role, actorId, input) {
 
     if (action !== 'progress' || ticket.assignedTechId !== actor.id || ['DELIVERED', 'PICKED_UP'].includes(ticket.status)) throw new Error('FORBIDDEN');
     const progress = Number(input.progress);
-    if (!Number.isInteger(progress) || progress < ticket.progress || progress < 10 || progress > 100) throw new Error('INVALID_PROGRESS');
+    if (![25, 50, 75, 100].includes(progress) || progress < ticket.progress) throw new Error('INVALID_PROGRESS');
     const partId = String(input.partId || '');
     const partQuantity = Number(input.partQuantity || 0);
-    if (progress >= 70 && ticket.usedParts.length === 0 && !partId) throw new Error('REPAIR_PART_REQUIRED');
+    if (progress >= 75 && ticket.usedParts.length === 0 && !partId) throw new Error('REPAIR_PART_REQUIRED');
     if (partId) {
       if (!Number.isInteger(partQuantity) || partQuantity < 1) throw new Error('INVALID_PART_QUANTITY');
       const deducted = await tx.part.updateMany({ where: { id: partId, stockQty: { gte: partQuantity } }, data: { stockQty: { decrement: partQuantity } } });
@@ -400,6 +425,22 @@ export async function updateRepairProgress(role, actorId, input) {
       include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } },
     });
     await tx.auditLog.create({ data: { userId: actor.id, action: progress === 100 ? 'repair.ready_for_pickup' : 'repair.progress_updated', entity: 'RepairTicket', entityId: ticket.id } });
+    return serializeRepair(updated, role, actor.id);
+  });
+}
+
+export async function assignRepair(role, actorId, input) {
+  requireRole(role, ['Front Desk']);
+  if (!input.id || !input.technicianId) throw new Error('INVALID_ASSIGNMENT');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const technician = await tx.user.findFirst({ where: { id: input.technicianId, role: 'TECHNICIAN', active: true } });
+    if (!technician) throw new Error('INVALID_ASSIGNMENT');
+    const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber: input.id } });
+    if (!ticket) throw new Error('NOT_FOUND');
+    if (ticket.status !== 'PENDING') throw new Error('JOB_UNAVAILABLE');
+    const updated = await tx.repairTicket.update({ where: { id: ticket.id }, data: { assignedTechId: technician.id }, include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.assigned', entity: 'RepairTicket', entityId: ticket.id } });
     return serializeRepair(updated, role, actor.id);
   });
 }
