@@ -47,7 +47,7 @@ select[aria-label^="Sort"] option { color: #18344e; background: white; font-weig
 .page-actions:has(select[aria-label^="Sort"]) { padding: 4px; border-radius: 999px; background: #f2f8fc; }
 .page-actions:has(select[aria-label^="Sort"]) select { box-shadow: none; }
 .inventory-controls > select[aria-label^="Sort"] { margin-bottom: 16px; }
-@media(max-width:600px) {
+@media(max-width:760px) {
   select[aria-label^="Sort"] { width: 100%; min-width: 0; }
   .toolbar:has(select[aria-label^="Sort"]) { align-items: stretch; flex-direction: column; }
   .page-actions:has(select[aria-label^="Sort"]) { border-radius: 10px; }

@@ -15,4 +15,4 @@
 .inventory-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .inventory-controls > select { border: 1px solid var(--line); border-radius: 7px; background: white; padding: 9px 11px; color: var(--ink); font-weight: 600; }
 .page-actions { display: flex; align-items: center; gap: 10px; }
-@media(max-width:600px){.inventory-controls{align-items:stretch;flex-direction:column}.inventory-tabs{width:100%}.inventory-tabs button{flex:1}.page-actions{align-items:stretch;flex-direction:column}}
+@media(max-width:760px){.inventory-controls{align-items:stretch;flex-direction:column}.inventory-tabs{width:100%}.inventory-tabs button{flex:1}.page-actions{align-items:stretch;flex-direction:column}}
