@@ -1,0 +1,6 @@
+.receipt-barcode.real-barcode {
+  display: block;
+  background: none;
+  fill: #061d3f;
+  shape-rendering: crispEdges;
+}

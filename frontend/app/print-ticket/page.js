@@ -3,6 +3,31 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import './print-ticket.css';
+import './barcode.css';
+
+const code39 = {
+  '0': 'nnnwwnwnn', '1': 'wnnwnnnnw', '2': 'nnwwnnnnw', '3': 'wnwwnnnnn', '4': 'nnnwwnnnw', '5': 'wnnwwnnnn', '6': 'nnwwwnnnn', '7': 'nnnwnnwnw', '8': 'wnnwnnwnn', '9': 'nnwwnnwnn',
+  A: 'wnnnnwnnw', B: 'nnwnnwnnw', C: 'wnwnnwnnn', D: 'nnnnwwnnw', E: 'wnnnwwnnn', F: 'nnwnwwnnn', G: 'nnnnnwwnw', H: 'wnnnnwwnn', I: 'nnwnnwwnn', J: 'nnnnwwwnn',
+  K: 'wnnnnnnww', L: 'nnwnnnnww', M: 'wnwnnnnwn', N: 'nnnnwnnww', O: 'wnnnwnnwn', P: 'nnwnwnnwn', Q: 'nnnnnnwww', R: 'wnnnnnwwn', S: 'nnwnnnwwn', T: 'nnnnwnwwn',
+  U: 'wwnnnnnnw', V: 'nwwnnnnnw', W: 'wwwnnnnnn', X: 'nwnnwnnnw', Y: 'wwnnwnnnn', Z: 'nwwnwnnnn', '-': 'nwnnnnwnw', '.': 'wwnnnnwnn', ' ': 'nwwnnnwnn', '*': 'nwnnwnwnn',
+};
+
+function TicketBarcode({ value }) {
+  const encoded = `*${String(value).toUpperCase()}*`;
+  const narrow = 2; const wide = 5; const gap = 2; const height = 62;
+  let x = 20; const bars = [];
+  for (const character of encoded) {
+    const pattern = code39[character];
+    if (!pattern) continue;
+    pattern.split('').forEach((width, index) => {
+      const size = width === 'w' ? wide : narrow;
+      if (index % 2 === 0) bars.push(<rect key={`${x}-${index}`} x={x} y="0" width={size} height={height}/>);
+      x += size;
+    });
+    x += gap;
+  }
+  return <svg className="receipt-barcode real-barcode" viewBox={`0 0 ${x + 20} ${height}`} role="img" aria-label={`Scannable Code 39 barcode for ${value}`} preserveAspectRatio="none">{bars}</svg>;
+}
 
 export default function PrintTicketPage() {
   const [ticket, setTicket] = useState(undefined);
@@ -20,7 +45,7 @@ export default function PrintTicketPage() {
     <article className="repair-receipt">
       <header><img src="/ifixlab251-logo.png" alt="iFixLab251"/><div><h1>iFixLab251</h1><p>REPAIR INTAKE / የጥገና መቀበያ</p></div></header>
       <section className="receipt-ticket-head"><div><small>JOB NUMBER / የስራ ቁጥር</small><strong>{ticket.id}</strong></div><div><small>DATE / ቀን</small><strong>{new Date(ticket.createdAt).toLocaleString()}</strong></div></section>
-      <div className="receipt-barcode" aria-label={`Barcode for ${ticket.id}`}></div><b className="barcode-label" style={{ marginBottom: 24 }}>{ticket.id}</b>
+      <TicketBarcode value={ticket.id}/><b className="barcode-label" style={{ marginBottom: 24 }}>{ticket.id}</b>
       <section className="receipt-grid">
         <div><small>CUSTOMER / ደንበኛ</small><strong>{ticket.customer}</strong><p>{ticket.phone}</p></div>
         <div><small>DEVICE / መሣሪያ</small><strong>{ticket.device}</strong><p>IMEI/SN: {ticket.imei}</p></div>
