@@ -1,23 +1,34 @@
+.sidebar-backdrop,.mobile-nav-close,.mobile-menu-button { display: none; }
+
 @media (max-width: 760px) {
   body { overflow-x: hidden; }
   .app-shell { display: flex; padding-bottom: 0; }
-  .sidebar { inset: 0 auto 0 0; width: 68px; height: 100dvh; padding: 14px 8px; display: flex; flex-direction: column; align-items: stretch; border-top: 0; border-right: 1px solid #17416d; box-shadow: 8px 0 24px #02132e1c; }
-  .sidebar .logo { display: flex; justify-content: center; padding: 0 0 17px; }
-  .sidebar .logo img { width: 43px; height: 43px; }
-  .sidebar .logo > span, .side-nav > p, .user-card { display: none; }
+  .sidebar { inset: 0 auto 0 0; width: min(82vw, 310px); height: 100dvh; padding: 20px 14px; display: flex; flex-direction: column; align-items: stretch; border-top: 0; border-right: 1px solid #17416d; box-shadow: 14px 0 36px #02132e55; transform: translateX(-105%); transition: transform .25s ease; visibility: hidden; }
+  .sidebar.mobile-open { transform: translateX(0); visibility: visible; }
+  .sidebar-backdrop { display: block; position: fixed; inset: 0; z-index: 19; padding: 0; border: 0; background: #03112699; opacity: 0; visibility: hidden; transition: opacity .25s ease,visibility .25s ease; }
+  .sidebar-backdrop.open { opacity: 1; visibility: visible; }
+  .mobile-nav-close { display: grid; position: absolute; top: 14px; right: 14px; width: 40px; height: 40px; place-items: center; padding: 0; border: 1px solid #315274; border-radius: 50%; background: #ffffff12; color: #fff; font-size: 27px; line-height: 1; }
+  .sidebar .logo { display: flex; justify-content: flex-start; padding: 0 48px 22px 7px; }
+  .sidebar .logo img { width: 45px; height: 45px; }
+  .sidebar .logo > span, .side-nav > p, .user-card { display: flex; }
+  .sidebar .logo .brand-number { display: inline !important; }
   .side-nav { display: grid; align-content: start; gap: 3px; min-width: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
   .side-nav::-webkit-scrollbar { display: none; }
-  .side-nav button { width: 100%; min-height: 48px; margin: 0; padding: 8px 4px; display: grid; place-items: center; gap: 1px; }
+  .side-nav button { width: 100%; min-height: 48px; margin: 0; padding: 11px 13px; display: flex; align-items: center; gap: 12px; }
   .side-nav button:before { inset: 8px auto 8px 0; width: 3px; height: auto; transform: scaleY(0); }
   .side-nav button.active:before { transform: scaleY(1); }
   .side-nav button:hover { transform: translateX(2px); }
-  .side-nav .nav-label, .side-nav button b { display: none !important; }
-  .nav-icon { width: auto; font-size: 20px; }
+  .side-nav .nav-label { display: inline !important; }
+  .side-nav button b { display: inline !important; }
+  .nav-icon { width: 19px; font-size: 20px; }
   .sidebar-foot { margin: auto 0 0; padding-top: 7px; border-top: 1px solid #17416d; border-left: 0; }
-  .sidebar-foot > button { width: 100%; min-height: 46px; margin: 0; padding: 8px; justify-content: center; font-size: 20px; }
-  .sidebar-foot > button span { display: none; }
-  .main-area { width: calc(100% - 68px); margin-left: 68px; }
+  .sidebar-foot > button { width: 100%; min-height: 46px; margin: 0; padding: 8px 13px; justify-content: flex-start; font-size: 16px; }
+  .sidebar-foot > button span { display: inline; }
+  .user-card { display: flex; }
+  .user-card div { display: grid; }
+  .main-area { width: 100%; margin-left: 0; }
   .topbar { height: 60px; padding: 0 12px; gap: 8px; }
+  .mobile-menu-button { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); font-size: 20px; }
   .mobile-logo { display: flex; flex: 1; font-size: 14px; }
   .mobile-logo img { width: 34px; height: 34px; }
   .global-search { display: none; }
@@ -64,7 +75,7 @@
   .staff-form { margin: 0 0 14px; }
   .team-member, .customer-profile { align-items: flex-start; }
   .team-member .staff-actions { width: 100%; justify-content: flex-end; }
-  .toast { right: 12px; bottom: 12px; left: 80px; text-align: center; }
+  .toast { right: 12px; bottom: 12px; left: 12px; text-align: center; }
   .api-error { align-items: flex-start; flex-wrap: wrap; }
   .api-error button { flex-basis: 100%; margin-left: 0; text-align: left; }
 }

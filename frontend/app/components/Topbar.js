@@ -1,4 +1,4 @@
-export default function Topbar({ role, user, search, setSearch, repairs = [], openRepairSearch, notificationCount = 0, openNotifications }) {
+export default function Topbar({ role, user, search, setSearch, repairs = [], openRepairSearch, openMobileNav, notificationCount = 0, openNotifications }) {
   const query = search.trim().toLowerCase();
   const results = query ? repairs.filter((repair) => [repair.id, repair.customer, repair.phone, repair.imei, repair.device]
     .some((value) => String(value || '').toLowerCase().includes(query))).slice(0, 6) : [];
@@ -9,6 +9,7 @@ export default function Topbar({ role, user, search, setSearch, repairs = [], op
   };
 
   return <header className="topbar">
+    <button className="mobile-menu-button" onClick={openMobileNav} aria-label="Open navigation" aria-expanded="false">☰</button>
     <div className="mobile-logo"><img src="/ifixlab251-logo.png" alt=""/>iFixLab<span>251</span></div>
     <form className="global-search" onSubmit={submitSearch} role="search">
       <span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search tickets, customers, phone, IMEI..." aria-label="Search repairs" autoComplete="off" />
