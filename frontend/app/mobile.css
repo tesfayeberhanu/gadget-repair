@@ -12,6 +12,7 @@
   .sidebar .logo img { width: 45px; height: 45px; }
   .sidebar .logo > span, .side-nav > p, .user-card { display: flex; }
   .sidebar .logo .brand-number { display: inline !important; }
+  .side-nav > p { margin: 12px 0 14px; padding: 5px 13px 5px 44px; }
   .side-nav { display: grid; align-content: start; gap: 3px; min-width: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
   .side-nav::-webkit-scrollbar { display: none; }
   .side-nav button { width: 100%; min-height: 48px; margin: 0; padding: 11px 13px; display: flex; align-items: center; gap: 12px; }
