@@ -104,7 +104,9 @@ export async function requestPasswordReset(email) {
 export async function resetPassword(input) {
   const token = String(input.token || '');
   const password = String(input.password || '');
+  const confirmPassword = String(input.confirmPassword || '');
   if (!token || password.length < 10) throw new Error('INVALID_PASSWORD_RESET');
+  if (password !== confirmPassword) throw new Error('PASSWORD_RESET_MISMATCH');
   await prisma.$transaction(async (tx) => {
     const record = await tx.passwordResetToken.findUnique({ where: { tokenHash: resetTokenHash(token) } });
     if (!record) throw new Error('INVALID_RESET_TOKEN');
