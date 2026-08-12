@@ -1,0 +1,34 @@
+/* Shared interaction polish */
+button, a, select, input, textarea { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease, color .18s ease, transform .18s ease, opacity .18s ease; }
+button:not(:disabled):active, .primary:not(:disabled):active, .outline:not(:disabled):active { transform: translateY(1px) scale(.985); }
+.primary:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 9px 20px #078fe548; filter: saturate(1.08); }
+.outline:not(:disabled):hover { transform: translateY(-1px); border-color: #8dcdf1; background: #f4fbff; color: #0878c4; }
+button:disabled { cursor: not-allowed; opacity: .58; }
+button:focus-visible, a:focus-visible, select:focus-visible, input:focus-visible, textarea:focus-visible { outline: 3px solid #079ce938; outline-offset: 2px; }
+.side-nav button { position: relative; overflow: hidden; }
+.side-nav button:before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; border-radius: 0 3px 3px 0; background: #16b4ff; transform: scaleY(0); transition: transform .18s ease; }
+.side-nav button:hover { transform: translateX(2px); }
+.side-nav button.active:before { transform: scaleY(1); }
+.icon-button:not(:disabled):hover { transform: translateY(-2px) rotate(-4deg); border-color: #91cff2; box-shadow: 0 7px 15px #063a6c1c; }
+.notification-bell:not(:disabled):hover > span { animation: bell-ring .55s ease; transform-origin: 50% 10%; }
+.card { transition: box-shadow .22s ease, border-color .22s ease, transform .22s ease; }
+.metric:hover, .customer-profile:hover, .team-member:hover { transform: translateY(-3px); border-color: #cae2f2; box-shadow: 0 9px 24px #06234d12; }
+tbody tr { transition: background-color .16s ease; }
+tbody tr:hover { background: #f7fbfe; }
+.table-action:not(:disabled):hover, .link:not(:disabled):hover { color: #045d9a; transform: translateX(2px); }
+.inventory-tabs button:not(:disabled):hover { background: #eaf6fd; color: #0878c4; }
+.inventory-tabs button.active:hover { background: #087dcc; color: white; }
+.category-badge, .quantity-badge, .status, .role-badge { transition: transform .16s ease, box-shadow .16s ease; }
+tr:hover .category-badge, tr:hover .quantity-badge, tr:hover .status { transform: scale(1.04); }
+.modal-backdrop { animation: backdrop-in .18s ease both; }
+.modal { animation: modal-in .22s cubic-bezier(.2,.8,.2,1) both; }
+.toast { animation: toast-in .25s cubic-bezier(.2,.8,.2,1) both; }
+.progress-track i { transition: width .35s cubic-bezier(.2,.8,.2,1), background-color .2s ease; }
+.loader { box-shadow: 0 0 0 5px #079ce50d; }
+@keyframes backdrop-in { from { opacity: 0; } }
+@keyframes modal-in { from { opacity: 0; transform: translateY(14px) scale(.985); } }
+@keyframes toast-in { from { opacity: 0; transform: translateY(12px) scale(.97); } }
+@keyframes bell-ring { 20% { transform: rotate(13deg); } 40% { transform: rotate(-11deg); } 60% { transform: rotate(7deg); } 80% { transform: rotate(-4deg); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *:before, *:after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
