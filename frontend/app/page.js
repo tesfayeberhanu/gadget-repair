@@ -62,6 +62,10 @@ export default function HomePage() {
   const repairs = workspace?.repairs || [];
   const assignedNewRepairs = role === 'Technician' ? repairs.filter((repair) => repair.status === 'Received' && repair.isMine) : [];
   const filteredRepairs = useMemo(() => { const query = search.toLowerCase(); return repairs.filter((repair) => Object.values(repair).join(' ').toLowerCase().includes(query)); }, [repairs, search]);
+  const openRepairSearch = (repair) => {
+    if (repair) setSearch(repair.id);
+    setActive('Repairs');
+  };
   const openIntake = () => { if (role !== 'Front Desk') return notify('Device intake is available to Front Desk only'); setShowIntake(true); setActive('New Intake'); };
   const closeIntake = () => { setShowIntake(false); setActive('Overview'); };
 
@@ -170,7 +174,7 @@ export default function HomePage() {
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} />
-    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
+    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} repairs={repairs} openRepairSearch={openRepairSearch} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
     {showIntake && <IntakeModal close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
   </div>;
 }
