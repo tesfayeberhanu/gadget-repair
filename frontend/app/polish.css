@@ -32,3 +32,23 @@ tr:hover .category-badge, tr:hover .quantity-badge, tr:hover .status { transform
 @media (prefers-reduced-motion: reduce) {
   *, *:before, *:after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Typography and sorting controls */
+body { font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-feature-settings: "kern" 1, "tnum" 1; }
+h1, h2, h3, strong, button { letter-spacing: -.012em; }
+.page-head h1 { font-weight: 780; text-wrap: balance; }
+th { font-weight: 750; letter-spacing: .085em; }
+.metric strong, .quantity-badge, .progress-cell b { font-variant-numeric: tabular-nums; }
+select[aria-label^="Sort"] { appearance: none; min-width: 170px; padding: 10px 38px 10px 34px !important; border: 1px solid #d7e5ef !important; border-radius: 999px !important; color: #28445f !important; font-size: 11px; font-weight: 750 !important; box-shadow: 0 3px 10px #06234d0a; cursor: pointer; background-color: #fff !important; background-image: linear-gradient(45deg, transparent 50%, #168fd4 50%), linear-gradient(135deg, #168fd4 50%, transparent 50%), radial-gradient(circle at 17px 50%, #dff3ff 0 6px, transparent 6.5px) !important; background-position: calc(100% - 17px) calc(50% - 2px), calc(100% - 12px) calc(50% - 2px), 0 0 !important; background-size: 5px 5px, 5px 5px, auto !important; background-repeat: no-repeat !important; }
+select[aria-label^="Sort"]:hover { transform: translateY(-2px); border-color: #82c9ee !important; color: #0878c4 !important; box-shadow: 0 8px 18px #0878c417; }
+select[aria-label^="Sort"]:focus { transform: translateY(-1px); border-color: #078fe5 !important; box-shadow: 0 0 0 4px #078fe51c, 0 8px 18px #0878c412; }
+select[aria-label^="Sort"] option { color: #18344e; background: white; font-weight: 600; }
+.toolbar:has(select[aria-label^="Sort"]) { align-items: center; }
+.page-actions:has(select[aria-label^="Sort"]) { padding: 4px; border-radius: 999px; background: #f2f8fc; }
+.page-actions:has(select[aria-label^="Sort"]) select { box-shadow: none; }
+.inventory-controls > select[aria-label^="Sort"] { margin-bottom: 16px; }
+@media(max-width:600px) {
+  select[aria-label^="Sort"] { width: 100%; min-width: 0; }
+  .toolbar:has(select[aria-label^="Sort"]) { align-items: stretch; flex-direction: column; }
+  .page-actions:has(select[aria-label^="Sort"]) { border-radius: 10px; }
+}
