@@ -20,8 +20,7 @@ export default function PrintTicketPage() {
     <article className="repair-receipt">
       <header><img src="/ifixlab251-logo.png" alt="iFixLab251"/><div><h1>iFixLab251</h1><p>REPAIR INTAKE / የጥገና መቀበያ</p></div></header>
       <section className="receipt-ticket-head"><div><small>JOB NUMBER / የስራ ቁጥር</small><strong>{ticket.id}</strong></div><div><small>DATE / ቀን</small><strong>{new Date(ticket.createdAt).toLocaleString()}</strong></div></section>
-      <div className="receipt-barcode" aria-label={`Barcode for ${ticket.id}`}></div><b className="barcode-label">{ticket.id}</b>
-      <section className="receipt-status"><span>WAITING FOR TECHNICIAN</span><p>The device is registered and waiting for a technician to take the job.</p></section>
+      <div className="receipt-barcode" aria-label={`Barcode for ${ticket.id}`}></div><b className="barcode-label" style={{ marginBottom: 24 }}>{ticket.id}</b>
       <section className="receipt-grid">
         <div><small>CUSTOMER / ደንበኛ</small><strong>{ticket.customer}</strong><p>{ticket.phone}</p></div>
         <div><small>DEVICE / መሣሪያ</small><strong>{ticket.device}</strong><p>IMEI/SN: {ticket.imei}</p></div>
