@@ -307,24 +307,29 @@ export async function deleteInventoryItem(role, actorId, id) {
   });
 }
 
-const normalizePhone = (value) => String(value || '').replace(/[^0-9+]/g, '');
+const normalizeEthiopianPhone = (value) => {
+  const phone = String(value || '').replace(/[\s()-]/g, '');
+  if (/^09\d{8}$/.test(phone)) return `+251${phone.slice(1)}`;
+  if (/^\+2519\d{8}$/.test(phone)) return phone;
+  return null;
+};
 
 export async function trackRepair(ticketNumber, phone) {
   const ticket = String(ticketNumber || '').trim().toUpperCase();
-  const normalizedPhone = normalizePhone(phone);
-  if (!ticket || normalizedPhone.length < 7) throw new Error('INVALID_TRACKING');
+  const normalizedPhone = normalizeEthiopianPhone(phone);
+  if (!ticket || !normalizedPhone) throw new Error('INVALID_TRACKING');
   const repair = await prisma.repairTicket.findUnique({ where: { ticketNumber: ticket }, include: { assignedTech: { select: { name: true } } } });
-  if (!repair || normalizePhone(repair.customerPhone) !== normalizedPhone) throw new Error('TRACKING_NOT_FOUND');
+  if (!repair || normalizeEthiopianPhone(repair.customerPhone) !== normalizedPhone) throw new Error('TRACKING_NOT_FOUND');
   return { ticketNumber: repair.ticketNumber, device: repair.deviceModel, status: statusLabel[repair.status], technician: repair.assignedTech?.name || 'Awaiting assignment', receivedAt: repair.createdAt, updatedAt: repair.updatedAt };
 }
 
 export async function requestAppointment(input) {
   const customerName = String(input.customerName || '').trim();
-  const customerPhone = normalizePhone(input.customerPhone);
+  const customerPhone = normalizeEthiopianPhone(input.customerPhone);
   const device = String(input.device || '').trim();
   const issue = String(input.issue || '').trim();
   const preferredDate = new Date(input.preferredDate);
-  if (!customerName || customerPhone.length < 7 || !device || !issue || Number.isNaN(preferredDate.getTime()) || preferredDate <= new Date()) throw new Error('INVALID_APPOINTMENT');
+  if (!customerName || !customerPhone || !device || !issue || Number.isNaN(preferredDate.getTime()) || preferredDate <= new Date()) throw new Error('INVALID_APPOINTMENT');
   const appointment = await prisma.appointment.create({ data: { customerName, customerPhone, device, issue, preferredDate } });
   return { reference: appointment.id.slice(0, 8).toUpperCase(), status: 'Requested', preferredDate: appointment.preferredDate };
 }
@@ -348,6 +353,8 @@ export async function createRepair(role, actorId, input) {
   requireRole(role, ['Front Desk']);
   const required = ['customer', 'phone', 'device', 'imei', 'issue'];
   if (required.some((field) => !String(input[field] || '').trim())) throw new Error('Missing required intake information');
+  const customerPhone = normalizeEthiopianPhone(input.phone);
+  if (!customerPhone) throw new Error('INVALID_ETHIOPIAN_PHONE');
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
@@ -356,7 +363,7 @@ export async function createRepair(role, actorId, input) {
     const ticket = await tx.repairTicket.create({
       data: {
         ticketNumber: `REP-${new Date().getFullYear()}-${String(sequence).padStart(4, '0')}`,
-        customerName: String(input.customer).trim(), customerPhone: String(input.phone).trim(), deviceModel: String(input.device).trim(),
+        customerName: String(input.customer).trim(), customerPhone, deviceModel: String(input.device).trim(),
         serialOrImei: String(input.imei).trim(), physicalCondition: input.condition || null, reportedIssue: String(input.issue).trim(),
         estimatedCost: Math.max(0, Number(input.estimate) || 0), createdById: actor.id,
       },

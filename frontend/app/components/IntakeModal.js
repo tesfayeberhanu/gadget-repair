@@ -35,7 +35,7 @@ export default function IntakeModal({ close, submit }) {
       <div className="intake-scroll">
         <section className="intake-section"><h3>Customer / ደንበኛ</h3><div className="form-grid">
           <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" required /></label>
-          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="+251 9..." autoComplete="tel" required /></label>
+          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="0912345678 or +251912345678" autoComplete="tel" pattern="(?:09\d{8}|\+2519\d{8})" title="Use 09XXXXXXXX or +2519XXXXXXXX" required /></label>
         </div></section>
         <section className="intake-section"><h3>Device / መሣሪያ</h3>
           <div className="device-type-row">{['Phone', 'Tablet', 'Laptop', 'Other'].map((type) => <label className="check-pill" key={type}><input type="radio" name="deviceType" value={type} defaultChecked={type === 'Phone'} /><span>{type}</span></label>)}</div>
