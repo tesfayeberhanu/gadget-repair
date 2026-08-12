@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import './print-ticket.css';
 import './barcode.css';
+import './thermal-80mm.css';
 
 const code39 = {
   '0': 'nnnwwnwnn', '1': 'wnnwnnnnw', '2': 'nnwwnnnnw', '3': 'wnwwnnnnn', '4': 'nnnwwnnnw', '5': 'wnnwwnnnn', '6': 'nnwwwnnnn', '7': 'nnnwnnwnw', '8': 'wnnwnnwnn', '9': 'nnwwnnwnn',
@@ -45,7 +46,7 @@ export default function PrintTicketPage() {
     <article className="repair-receipt">
       <header><img src="/ifixlab251-logo.png" alt="iFixLab251"/><div><h1>iFixLab251</h1><p>REPAIR INTAKE / የጥገና መቀበያ</p></div></header>
       <section className="receipt-ticket-head"><div><small>JOB NUMBER / የስራ ቁጥር</small><strong>{ticket.id}</strong></div><div><small>DATE / ቀን</small><strong>{new Date(ticket.createdAt).toLocaleString()}</strong></div></section>
-      <TicketBarcode value={ticket.id}/><b className="barcode-label" style={{ marginBottom: 24 }}>{ticket.id}</b>
+      <TicketBarcode value={ticket.id}/><b className="barcode-label">{ticket.id}</b>
       <section className="receipt-grid">
         <div><small>CUSTOMER / ደንበኛ</small><strong>{ticket.customer}</strong><p>{ticket.phone}</p></div>
         <div><small>DEVICE / መሣሪያ</small><strong>{ticket.device}</strong><p>IMEI/SN: {ticket.imei}</p></div>
