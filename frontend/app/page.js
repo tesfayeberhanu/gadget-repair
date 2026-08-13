@@ -7,7 +7,7 @@ import Overview from './components/Overview';
 import IntakeModal from './components/IntakeModal';
 import LoginScreen from './components/LoginScreen';
 import SettingsView from './components/SettingsView';
-import { AppointmentsView, RepairsView, InventoryView, SalesView, CustomersView, ReportsView, TeamView } from './components/ModuleViews';
+import { AppointmentsView, RepairsView, InventoryView, ExpensesView, SalesView, CustomersView, ReportsView, TeamView } from './components/ModuleViews';
 
 async function apiRequest(path, token, options = {}) {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
@@ -119,6 +119,19 @@ export default function HomePage() {
     try { await apiRequest('/api/inventory', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Inventory item deleted'); }
     catch (requestError) { setError(requestError.message); }
   };
+  const createExpense = async (form) => {
+    try { await apiRequest('/api/expenses', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Expense recorded'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const updateExpense = async (form) => {
+    try { await apiRequest('/api/expenses', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify('Expense updated'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const deleteExpense = async (id, description) => {
+    if (!window.confirm(`Delete expense "${description}"? This cannot be undone.`)) return;
+    try { await apiRequest('/api/expenses', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Expense deleted'); }
+    catch (requestError) { setError(requestError.message); }
+  };
   const deactivateStaff = async (id, name) => {
     if (!window.confirm(`Deactivate ${name}? They will no longer be able to sign in.`)) return;
     try { await apiRequest('/api/users', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Staff account deactivated'); }
@@ -170,8 +183,8 @@ export default function HomePage() {
   if (token === undefined || (token && !workspace && !error)) return <div className="loading-screen"><span className="loader"></span><p>Loading iFixLab251 workspace…</p></div>;
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
-  const shared = { role, user, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], sales: workspace?.sales || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, 'Point of Sale': <SalesView sales={shared.sales} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
+  const shared = { role, user, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], expenses: workspace?.expenses || [], sales: workspace?.sales || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], setActive, openIntake };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expenses: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} />, Customers: <CustomersView repairs={repairs} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} mobileOpen={mobileNavOpen} closeMobileNav={() => setMobileNavOpen(false)} />

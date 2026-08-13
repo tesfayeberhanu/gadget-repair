@@ -1,0 +1,11 @@
+.expense-controls { display: flex; justify-content: flex-end; gap: 12px; margin-bottom: 16px; padding: 12px; }
+.expense-controls label { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.expense-controls select { border: 1px solid var(--line); border-radius: 7px; padding: 8px 10px; background: #fff; color: var(--ink); font-weight: 600; }
+.expense-table .panel-title { align-items: center; margin-bottom: 0; padding: 18px 20px; }
+.expense-table th, .expense-table td { padding-top: 15px; padding-bottom: 15px; }
+.expense-amount { color: #c0523c; }
+.expense-actions { display: flex; gap: 14px; }
+.expense-actions button { border: 0; padding: 0; background: transparent; color: #087dca; font-weight: 600; white-space: nowrap; }
+.expense-actions button.delete { color: #d74634; }
+.expense-modal { width: min(620px, 100%); }
+@media(max-width:760px){.expense-controls{align-items:stretch;flex-direction:column}.expense-controls label{justify-content:space-between}.expense-controls select{min-width:170px}}

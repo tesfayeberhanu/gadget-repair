@@ -19,6 +19,9 @@
 .staff-form label { display: grid; gap: 6px; font-size: 10px; font-weight: 700; }
 .staff-form input, .staff-form select { border: 1px solid #dce7f0; border-radius: 7px; padding: 9px; background: #fff; }
 .staff-form > div { display: flex; gap: 7px; }
+.compensation-picker { grid-column: 1/-1; border: 1px solid #dce7f0; border-radius: 8px; padding: 12px; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.compensation-picker legend { font-size: 10px; font-weight: 800; padding: 0 5px; }
+.compensation-picker small { grid-column: 1/-1; color: var(--muted); font-size: 9px; }
 .permission-picker { grid-column: 1/-1; border: 1px solid #dce7f0; border-radius: 8px; padding: 10px; display: flex; flex-wrap: wrap; gap: 12px; }
 .permission-picker legend { font-size: 10px; font-weight: 800; padding: 0 5px; }
 .permission-picker label { display: flex; grid-auto-flow: column; align-items: center; gap: 5px; font-weight: 600; }
@@ -31,6 +34,8 @@
 .staff-actions .staff-remove { margin-left: 0; }
 .permission-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
 .permission-tags i { font-style: normal; font-size: 7px; color: #0878c4; background: #e7f5ff; border-radius: 10px; padding: 3px 6px; }
+.compensation-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
+.compensation-tags i { font-style: normal; font-size: 7px; color: #8a5a16; background: #fff3df; border-radius: 10px; padding: 3px 6px; }
 
-@media (max-width: 900px) { .staff-form { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 560px) { .staff-form { grid-template-columns: 1fr; } }
+@media (max-width: 900px) { .staff-form { grid-template-columns: 1fr 1fr; } .compensation-picker { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 560px) { .staff-form { grid-template-columns: 1fr; } .compensation-picker { grid-template-columns: 1fr; } }

@@ -4,6 +4,7 @@ import './auth.css';
 import './customer.css';
 import './delivery.css';
 import './inventory.css';
+import './expenses.css';
 import './repair-progress.css';
 import './settings.css';
 import './polish.css';

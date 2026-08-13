@@ -3,7 +3,7 @@ import { createSession, hashPassword, requireRole, verifyPassword } from './auth
 import { createHash, randomBytes } from 'node:crypto';
 
 const navigation = {
-  Admin: ['Overview', 'Repairs', 'Inventory', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Settings'],
+  Admin: ['Overview', 'Repairs', 'Inventory', 'Expenses', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Settings'],
   Technician: ['Overview', 'Repairs', 'Inventory'],
   'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers'],
 };
@@ -59,6 +59,10 @@ function serializePart(part, role) {
 
 function serializeSale(sale) {
   return { id: `#SL-${sale.id.slice(0, 6).toUpperCase()}`, customer: sale.ticket?.customerName || 'Retail customer', item: sale.ticket ? `${sale.ticket.deviceModel} repair` : 'Retail sale', method: methodLabel[sale.paymentMethod], amount: Number(sale.totalAmount), status: paymentLabel[sale.paymentStatus] };
+}
+
+function serializeExpense(expense) {
+  return { id: expense.id, description: expense.description, category: expense.category, amount: Number(expense.amount), expenseDate: expense.expenseDate, notes: expense.notes || '', recordedBy: expense.recordedBy?.name || 'Admin', createdAt: expense.createdAt, updatedAt: expense.updatedAt };
 }
 
 async function actorFor(actorId, role, client = prisma) {
@@ -133,15 +137,18 @@ export async function getWorkspace(role, actorId) {
     const item = permissionNavigation[permission];
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
-  const [tickets, parts, sales, team, appointments, technicians, inventoryMovements] = await Promise.all([
+  const [tickets, parts, sales, team, appointments, technicians, inventoryMovements, expenses] = await Promise.all([
     prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } }, delivery: { include: { deliveredBy: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' && !actor.permissions.includes('MANAGE_POS') ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
-    role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true }, orderBy: { createdAt: 'asc' } }) : [],
+    role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true, salary: true, rent: true, commission: true, allowance: true }, orderBy: { createdAt: 'asc' } }) : [],
     role === 'Front Desk' ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
     role === 'Front Desk' ? prisma.user.findMany({ where: { role: 'TECHNICIAN', active: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [],
     role === 'Admin' || actor.permissions.includes('VIEW_REPORTS')
       ? prisma.inventoryMovement.findMany()
+      : [],
+    role === 'Admin' || actor.permissions.includes('VIEW_REPORTS')
+      ? prisma.expense.findMany({ include: { recordedBy: { select: { name: true } } }, orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }] })
       : [],
   ]);
 
@@ -163,7 +170,11 @@ export async function getWorkspace(role, actorId) {
   const accessoriesRevenue = inventoryRevenue.accessories.quantityInValue - inventoryRevenue.accessories.quantityOutValue;
   const completedTickets = tickets.filter((ticket) => ['DELIVERED', 'PICKED_UP'].includes(ticket.status));
   const maintenanceRevenue = completedTickets.reduce((sum, ticket) => sum + Number(ticket.serviceCharge || 0), 0);
-  const reportMetrics = { totalRevenue: sparePartsRevenue + accessoriesRevenue + maintenanceRevenue, sparePartsRevenue, accessoriesRevenue, maintenanceRevenue, completedJobs: completedTickets.length, paidSalesRevenue: paidRevenue, grossMargin: 54.2, technicianYield: 6.4 };
+  const totalRevenue = sparePartsRevenue + accessoriesRevenue + maintenanceRevenue;
+  const totalExpenses = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const currentMonth = new Date();
+  const monthlyExpenses = expenses.filter((expense) => expense.expenseDate.getUTCFullYear() === currentMonth.getUTCFullYear() && expense.expenseDate.getUTCMonth() === currentMonth.getUTCMonth()).reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const reportMetrics = { totalRevenue, totalExpenses, monthlyExpenses, netRevenue: totalRevenue - totalExpenses, sparePartsRevenue, accessoriesRevenue, maintenanceRevenue, completedJobs: completedTickets.length, paidSalesRevenue: paidRevenue, grossMargin: 54.2, technicianYield: 6.4 };
   const dashboard = role === 'Technician'
     ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'DELIVERED').length }
     : role === 'Front Desk'
@@ -178,10 +189,11 @@ export async function getWorkspace(role, actorId) {
     dashboard,
     repairs,
     inventory,
+    expenses: role === 'Admin' ? expenses.map(serializeExpense) : [],
     sales: sales.map(serializeSale),
     appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: appointmentLabel[item.status] || item.status })),
     technicians,
-    team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: roleLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), permissions: user.permissions, description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
+    team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: roleLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), permissions: user.permissions, salary: Number(user.salary || 0), rent: Number(user.rent || 0), commission: Number(user.commission || 0), allowance: Number(user.allowance || 0), description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
   };
 }
 
@@ -215,6 +227,12 @@ export async function changePassword(role, actorId, input) {
   });
 }
 
+function staffCompensationInput(input) {
+  const compensation = Object.fromEntries(['salary', 'rent', 'commission', 'allowance'].map((field) => [field, Number(input[field] || 0)]));
+  if (Object.values(compensation).some((amount) => !Number.isFinite(amount) || amount < 0 || amount > 99_999_999.99)) throw new Error('INVALID_STAFF_COMPENSATION');
+  return compensation;
+}
+
 export async function createStaff(role, actorId, input) {
   requireRole(role, ['Admin']);
   const name = String(input.name || '').trim();
@@ -222,12 +240,13 @@ export async function createStaff(role, actorId, input) {
   const password = String(input.password || '');
   const staffRole = input.role;
   const permissions = Array.isArray(input.permissions) ? input.permissions.filter((permission) => allowedPermissions.includes(permission)) : [];
+  const compensation = staffCompensationInput(input);
   if (!name || !email.includes('@') || password.length < 10) throw new Error('INVALID_STAFF');
   if (!['Technician', 'Front Desk'].includes(staffRole)) throw new Error('INVALID_STAFF_ROLE');
   return prisma.$transaction(async (tx) => {
-    const user = await tx.user.upsert({ where: { email }, update: { name, role: dbRole[staffRole], permissions, password: hashPassword(password), active: true }, create: { name, email, role: dbRole[staffRole], permissions, password: hashPassword(password), active: true } });
+    const user = await tx.user.upsert({ where: { email }, update: { name, role: dbRole[staffRole], permissions, ...compensation, password: hashPassword(password), active: true }, create: { name, email, role: dbRole[staffRole], permissions, ...compensation, password: hashPassword(password), active: true } });
     await tx.auditLog.create({ data: { userId: actorId, action: 'staff.created_or_reactivated', entity: 'User', entityId: user.id } });
-    return { id: user.id, email: user.email, name: user.name, role: staffRole, permissions, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
+    return { id: user.id, email: user.email, name: user.name, role: staffRole, permissions, ...compensation, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
   });
 }
 
@@ -239,6 +258,7 @@ export async function updateStaff(role, actorId, input) {
   const password = String(input.password || '');
   const staffRole = input.role;
   const permissions = Array.isArray(input.permissions) ? input.permissions.filter((permission) => allowedPermissions.includes(permission)) : [];
+  const compensation = staffCompensationInput(input);
   if (!id || !name || !email.includes('@') || (password && password.length < 10)) throw new Error('INVALID_STAFF_UPDATE');
   if (!['Technician', 'Front Desk'].includes(staffRole)) throw new Error('INVALID_STAFF_ROLE');
   return prisma.$transaction(async (tx) => {
@@ -248,9 +268,9 @@ export async function updateStaff(role, actorId, input) {
     if (target.role === 'ADMIN') throw new Error('PROTECTED_ADMIN');
     const duplicate = await tx.user.findFirst({ where: { email, id: { not: id } }, select: { id: true } });
     if (duplicate) throw new Error('PROFILE_EMAIL_EXISTS');
-    const user = await tx.user.update({ where: { id }, data: { name, email, role: dbRole[staffRole], permissions, ...(password ? { password: hashPassword(password) } : {}) } });
+    const user = await tx.user.update({ where: { id }, data: { name, email, role: dbRole[staffRole], permissions, ...compensation, ...(password ? { password: hashPassword(password) } : {}) } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'staff.updated', entity: 'User', entityId: user.id } });
-    return { id: user.id, email: user.email, name: user.name, role: staffRole, permissions, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
+    return { id: user.id, email: user.email, name: user.name, role: staffRole, permissions, ...compensation, description: staffRole === 'Technician' ? 'Repairs and parts' : 'Intake, POS and customers' };
   });
 }
 
@@ -320,6 +340,57 @@ export async function deleteInventoryItem(role, actorId, id) {
     if (existing._count.ticketParts > 0) throw new Error('INVENTORY_IN_USE');
     await tx.part.delete({ where: { id } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.deleted', entity: 'Part', entityId: id } });
+    return { success: true };
+  });
+}
+
+const expenseCategories = ['Rent', 'Utilities', 'Salaries', 'Transport', 'Supplies', 'Marketing', 'Taxes', 'Other'];
+
+function expenseInput(input) {
+  const description = String(input.description || '').trim();
+  const category = String(input.category || '').trim();
+  const amount = Number(input.amount);
+  const expenseDateText = String(input.expenseDate || '');
+  const notes = String(input.notes || '').trim() || null;
+  const expenseDate = /^\d{4}-\d{2}-\d{2}$/.test(expenseDateText) ? new Date(`${expenseDateText}T00:00:00.000Z`) : null;
+  if (!description || !expenseCategories.includes(category) || !Number.isFinite(amount) || amount <= 0 || amount > 99_999_999.99 || !expenseDate || Number.isNaN(expenseDate.getTime()) || expenseDate.toISOString().slice(0, 10) !== expenseDateText) throw new Error('INVALID_EXPENSE');
+  return { description, category, amount, expenseDate, notes };
+}
+
+export async function createExpense(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const data = expenseInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const expense = await tx.expense.create({ data: { ...data, recordedById: actor.id }, include: { recordedBy: { select: { name: true } } } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'expense.created', entity: 'Expense', entityId: expense.id } });
+    return serializeExpense(expense);
+  });
+}
+
+export async function updateExpense(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  if (!input.id) throw new Error('NOT_FOUND');
+  const data = expenseInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.expense.findUnique({ where: { id: input.id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const expense = await tx.expense.update({ where: { id: input.id }, data, include: { recordedBy: { select: { name: true } } } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'expense.updated', entity: 'Expense', entityId: expense.id } });
+    return serializeExpense(expense);
+  });
+}
+
+export async function deleteExpense(role, actorId, id) {
+  requireRole(role, ['Admin']);
+  if (!id) throw new Error('NOT_FOUND');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.expense.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    await tx.expense.delete({ where: { id } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'expense.deleted', entity: 'Expense', entityId: id } });
     return { success: true };
   });
 }

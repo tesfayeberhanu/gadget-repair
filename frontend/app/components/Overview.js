@@ -21,7 +21,7 @@ export default function Overview({ role, user, repairs, inventory, sales, dashbo
 
   return <>
     <PageHead eyebrow={today} title={`${greeting}, ${firstName}`}><span className="head-count">Current overview</span></PageHead>
-    <div className="metric-grid"><Metric icon="Br" tone="green" label="Total revenue" value={`ETB ${Number(dashboard.totalRevenue || 0).toLocaleString('en-ET')}`} meta="Server-calculated"/><Metric icon="▥" tone="blue" label="Active repairs" value={dashboard.activeRepairs} meta="Live repair queue"/><Metric icon="✓" tone="violet" label="Ready this month" value={dashboard.completedThisMonth} meta="Server-calculated"/><Metric icon="!" tone="amber" label="Low stock items" value={dashboard.lowStock} meta="At or below threshold"/></div>
+    <div className="metric-grid"><Metric icon="Br" tone="green" label="Net revenue" value={`ETB ${Number(dashboard.netRevenue || 0).toLocaleString('en-ET')}`} meta="Revenue − expenses"/><Metric icon="−" tone="amber" label="Expenses this month" value={`ETB ${Number(dashboard.monthlyExpenses || 0).toLocaleString('en-ET')}`} meta="Operating expenses"/><Metric icon="▥" tone="blue" label="Active repairs" value={dashboard.activeRepairs} meta="Live repair queue"/><Metric icon="!" tone="violet" label="Low stock items" value={dashboard.lowStock} meta="At or below threshold"/></div>
     <div className="dashboard-grid"><RevenueCard/><StatusCard repairs={repairs}/></div>
     <QueueCard repairs={repairs.slice(0, 4)} role={role} onView={() => setActive('Repairs')} />
     <div className="bottom-grid"><SalesCard sales={sales}/><LowStockCard parts={inventory} onView={() => setActive('Inventory')}/></div>

@@ -48,6 +48,10 @@ model User {
   role        Role     @default(FRONT_DESK)
   active      Boolean  @default(true)
   permissions String[] @default([])
+  salary      Decimal  @default(0) @db.Decimal(10, 2)
+  rent        Decimal  @default(0) @db.Decimal(10, 2)
+  commission  Decimal  @default(0) @db.Decimal(10, 2)
+  allowance   Decimal  @default(0) @db.Decimal(10, 2)
   createdAt   DateTime @default(now())
 
   createdTickets  RepairTicket[]   @relation("CreatedBy")
@@ -56,6 +60,7 @@ model User {
   auditLogs       AuditLog[]
   deliveries      DeliveryRecord[]
   passwordResets  PasswordResetToken[]
+  expenses        Expense[]
 }
 
 model PasswordResetToken {
@@ -161,6 +166,22 @@ model Sale {
   processedBy   String
   user          User          @relation(fields: [processedBy], references: [id])
   createdAt     DateTime      @default(now())
+}
+
+model Expense {
+  id           String   @id @default(uuid())
+  description  String
+  category     String
+  amount       Decimal  @db.Decimal(10, 2)
+  expenseDate  DateTime @db.Date
+  notes        String?
+  recordedById String
+  recordedBy   User     @relation(fields: [recordedById], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([expenseDate])
+  @@index([category])
 }
 
 model AuditLog {
