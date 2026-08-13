@@ -37,20 +37,35 @@ async function main() {
     }
   }
 
-  const tickets = await Promise.all([
+  const ticketFixtures = [
     ['REP-2026-0142', 'Maya Chen', '+251 911 456 801', 'iPhone 14 Pro', '351234567890142', 'Damaged', 'Screen replacement', 'IN_PROGRESS', 285, 45, technician.id],
     ['REP-2026-0141', 'Samuel Okoro', '+251 916 048 241', 'Samsung S23', '351234567890141', 'Good — normal wear', 'Battery draining', 'WAITING_FOR_PARTS', 120, 35, null],
     ['REP-2026-0140', 'Lina Haddad', '+251 927 540 112', 'MacBook Air M2', 'C02M200140', 'Severely damaged', 'Liquid damage', 'PENDING', 340, 80, null],
     ['REP-2026-0139', 'Noah Williams', '+251 929 612 087', 'Google Pixel 8', '351234567890139', 'Good — normal wear', 'Camera not focusing', 'COMPLETED', 195, 40, technician.id],
-  ].map(([ticketNumber, customerName, customerPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, serviceCharge, assignedTechId]) => prisma.repairTicket.upsert({
-    where: { ticketNumber }, update: {}, create: { ticketNumber, customerName, customerPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, serviceCharge, assignedTechId, createdById: frontDesk.id },
-  })));
+  ];
+  const customerByPhone = new Map();
+  for (const [, customerName, rawPhone] of ticketFixtures) {
+    const phone = rawPhone.replace(/\s/g, '');
+    const customer = await prisma.customer.upsert({ where: { phone }, update: { name: customerName }, create: { name: customerName, phone } });
+    customerByPhone.set(phone, customer);
+  }
+  const tickets = await Promise.all(ticketFixtures.map(([ticketNumber, customerName, rawPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, serviceCharge, assignedTechId]) => {
+    const customerPhone = rawPhone.replace(/\s/g, '');
+    return prisma.repairTicket.upsert({
+      where: { ticketNumber }, update: {}, create: { ticketNumber, customerId: customerByPhone.get(customerPhone).id, customerName, customerPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, serviceCharge, assignedTechId, createdById: frontDesk.id },
+    });
+  }));
 
   if (await prisma.sale.count() === 0) {
-    await prisma.sale.createMany({ data: [
-      { ticketId: tickets[3].id, totalAmount: 195, paymentMethod: 'CARD', paymentStatus: 'PAID', processedBy: admin.id },
-      { totalAmount: 64, paymentMethod: 'CASH', paymentStatus: 'PAID', processedBy: frontDesk.id },
-      { ticketId: tickets[0].id, totalAmount: 100, paymentMethod: 'DIGITAL_TRANSFER', paymentStatus: 'PENDING', processedBy: frontDesk.id },
+    const now = new Date();
+    const seededSales = await Promise.all([
+      prisma.sale.create({ data: { ticketId: tickets[3].id, finalizationKey: `repair:${tickets[3].id}`, customerId: tickets[3].customerId, totalAmount: 195, paymentMethod: 'CARD', paymentStatus: 'PAID', status: 'FINALIZED', recognizedRevenue: 195, finalizedAt: now, revenueRecognizedAt: now, processedBy: admin.id } }),
+      prisma.sale.create({ data: { totalAmount: 64, paymentMethod: 'CASH', paymentStatus: 'PAID', status: 'FINALIZED', recognizedRevenue: 64, finalizedAt: now, revenueRecognizedAt: now, processedBy: frontDesk.id } }),
+      prisma.sale.create({ data: { ticketId: tickets[0].id, finalizationKey: `repair:${tickets[0].id}`, customerId: tickets[0].customerId, totalAmount: 100, paymentStatus: 'UNPAID', status: 'DRAFT', processedBy: frontDesk.id } }),
+    ]);
+    await prisma.payment.createMany({ data: [
+      { saleId: seededSales[0].id, amount: 195, method: 'CARD', idempotencyKey: `seed:${seededSales[0].id}`, processedBy: admin.id },
+      { saleId: seededSales[1].id, amount: 64, method: 'CASH', idempotencyKey: `seed:${seededSales[1].id}`, processedBy: frontDesk.id },
     ] });
   }
 }
