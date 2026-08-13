@@ -1,9 +1,15 @@
 ALTER TYPE "PaymentStatus" ADD VALUE IF NOT EXISTS 'UNPAID';
 ALTER TYPE "PaymentStatus" ADD VALUE IF NOT EXISTS 'PARTIALLY_PAID';
 
-CREATE TYPE "SaleStatus" AS ENUM ('DRAFT', 'FINALIZED', 'CANCELLED', 'REFUNDED');
+DO $$
+BEGIN
+  CREATE TYPE "SaleStatus" AS ENUM ('DRAFT', 'FINALIZED', 'CANCELLED', 'REFUNDED');
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$;
 
-CREATE TABLE "Customer" (
+CREATE TABLE IF NOT EXISTS "Customer" (
   "id" TEXT NOT NULL,
   "name" TEXT NOT NULL,
   "phone" TEXT NOT NULL,
@@ -36,9 +42,12 @@ WITH normalized_tickets AS (
 )
 INSERT INTO "Customer" ("id", "name", "phone", "is_credit_customer", "createdAt", "updatedAt")
 SELECT 'cus_' || md5(normalized_phone), "customerName", normalized_phone, false, "createdAt", "updatedAt"
-FROM customer_source;
+FROM customer_source source
+WHERE NOT EXISTS (
+  SELECT 1 FROM "Customer" customer WHERE customer."phone" = source.normalized_phone
+);
 
-ALTER TABLE "RepairTicket" ADD COLUMN "customerId" TEXT;
+ALTER TABLE "RepairTicket" ADD COLUMN IF NOT EXISTS "customerId" TEXT;
 
 UPDATE "RepairTicket" ticket
 SET "customerId" = customer."id",
@@ -53,15 +62,15 @@ END;
 ALTER TABLE "RepairTicket" ALTER COLUMN "customerId" SET NOT NULL;
 
 ALTER TABLE "Sale"
-  ADD COLUMN "customerId" TEXT,
-  ADD COLUMN "finalizationKey" TEXT,
-  ADD COLUMN "status" "SaleStatus" NOT NULL DEFAULT 'DRAFT',
-  ADD COLUMN "isCreditSale" BOOLEAN NOT NULL DEFAULT false,
-  ADD COLUMN "recognizedRevenue" DECIMAL(10,2),
-  ADD COLUMN "finalizedAt" TIMESTAMP(3),
-  ADD COLUMN "revenueRecognizedAt" TIMESTAMP(3),
-  ADD COLUMN "revenueReversedAt" TIMESTAMP(3),
-  ADD COLUMN "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  ADD COLUMN IF NOT EXISTS "customerId" TEXT,
+  ADD COLUMN IF NOT EXISTS "finalizationKey" TEXT,
+  ADD COLUMN IF NOT EXISTS "status" "SaleStatus" NOT NULL DEFAULT 'DRAFT',
+  ADD COLUMN IF NOT EXISTS "isCreditSale" BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS "recognizedRevenue" DECIMAL(10,2),
+  ADD COLUMN IF NOT EXISTS "finalizedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "revenueRecognizedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "revenueReversedAt" TIMESTAMP(3),
+  ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;
 
 UPDATE "Sale" sale
 SET "customerId" = ticket."customerId"
@@ -97,7 +106,7 @@ SET "finalizationKey" = 'repair:' || sale."ticketId"
 FROM ranked_sales ranked
 WHERE ranked."id" = sale."id" AND ranked.rank = 1;
 
-CREATE TABLE "Payment" (
+CREATE TABLE IF NOT EXISTS "Payment" (
   "id" TEXT NOT NULL,
   "saleId" TEXT NOT NULL,
   "amount" DECIMAL(10,2) NOT NULL,
@@ -113,19 +122,35 @@ CREATE TABLE "Payment" (
 
 INSERT INTO "Payment" ("id", "saleId", "amount", "method", "idempotencyKey", "processedBy", "createdAt")
 SELECT 'pay_migrated_' || md5("id"), "id", "totalAmount", COALESCE("paymentMethod", 'CASH'::"PaymentMethod"), 'migration:' || "id", "processedBy", "createdAt"
-FROM "Sale"
-WHERE "paymentStatus" = 'PAID' AND "totalAmount" > 0;
+FROM "Sale" sale
+WHERE sale."paymentStatus" = 'PAID'
+  AND sale."totalAmount" > 0
+  AND NOT EXISTS (
+    SELECT 1 FROM "Payment" payment WHERE payment."idempotencyKey" = 'migration:' || sale."id"
+  );
 
-CREATE UNIQUE INDEX "Customer_phone_key" ON "Customer"("phone");
-CREATE INDEX "Customer_name_idx" ON "Customer"("name");
-CREATE UNIQUE INDEX "Sale_finalizationKey_key" ON "Sale"("finalizationKey");
-CREATE INDEX "Sale_ticketId_idx" ON "Sale"("ticketId");
-CREATE INDEX "Sale_customerId_idx" ON "Sale"("customerId");
-CREATE INDEX "Sale_status_revenueRecognizedAt_idx" ON "Sale"("status", "revenueRecognizedAt");
-CREATE UNIQUE INDEX "Payment_idempotencyKey_key" ON "Payment"("idempotencyKey");
-CREATE INDEX "Payment_saleId_createdAt_idx" ON "Payment"("saleId", "createdAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "Customer_phone_key" ON "Customer"("phone");
+CREATE INDEX IF NOT EXISTS "Customer_name_idx" ON "Customer"("name");
+CREATE UNIQUE INDEX IF NOT EXISTS "Sale_finalizationKey_key" ON "Sale"("finalizationKey");
+CREATE INDEX IF NOT EXISTS "Sale_ticketId_idx" ON "Sale"("ticketId");
+CREATE INDEX IF NOT EXISTS "Sale_customerId_idx" ON "Sale"("customerId");
+CREATE INDEX IF NOT EXISTS "Sale_status_revenueRecognizedAt_idx" ON "Sale"("status", "revenueRecognizedAt");
+CREATE UNIQUE INDEX IF NOT EXISTS "Payment_idempotencyKey_key" ON "Payment"("idempotencyKey");
+CREATE INDEX IF NOT EXISTS "Payment_saleId_createdAt_idx" ON "Payment"("saleId", "createdAt");
 
-ALTER TABLE "RepairTicket" ADD CONSTRAINT "RepairTicket_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-ALTER TABLE "Sale" ADD CONSTRAINT "Sale_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-ALTER TABLE "Payment" ADD CONSTRAINT "Payment_processedBy_fkey" FOREIGN KEY ("processedBy") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'RepairTicket_customerId_fkey') THEN
+    ALTER TABLE "RepairTicket" ADD CONSTRAINT "RepairTicket_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Sale_customerId_fkey') THEN
+    ALTER TABLE "Sale" ADD CONSTRAINT "Sale_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "Customer"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Payment_saleId_fkey') THEN
+    ALTER TABLE "Payment" ADD CONSTRAINT "Payment_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "Sale"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Payment_processedBy_fkey') THEN
+    ALTER TABLE "Payment" ADD CONSTRAINT "Payment_processedBy_fkey" FOREIGN KEY ("processedBy") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END
+$$;
