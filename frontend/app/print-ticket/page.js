@@ -50,7 +50,7 @@ export default function PrintTicketPage() {
       <section className="receipt-grid">
         <div><small>CUSTOMER / ደንበኛ</small><strong>{ticket.customer}</strong><p>{ticket.phone}</p></div>
         <div><small>DEVICE / መሣሪያ</small><strong>{ticket.device}</strong><p>IMEI/SN: {ticket.imei}</p></div>
-        <div><small>SERVICE CHARGE / የአገልግሎት ክፍያ</small><strong>ETB {Number(ticket.serviceCharge || 0).toLocaleString('en-ET')}</strong></div>
+        <div><small>ESTIMATED MAINTENANCE CHARGE / የጥገና ግምት</small><strong>ETB {Number(ticket.estimatedCost || 0).toLocaleString('en-ET')}</strong></div>
         <div className="wide"><small>REPORTED ISSUE / የተገለጸው ችግር</small><p>{ticket.issue}</p></div>
         <div className="wide"><small>PHYSICAL CONDITION / አካላዊ ሁኔታ</small><p>{ticket.condition || 'Not recorded'}</p></div>
       </section>

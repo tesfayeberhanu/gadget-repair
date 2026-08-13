@@ -372,8 +372,8 @@ export async function createRepair(role, actorId, input) {
   if (required.some((field) => !String(input[field] || '').trim())) throw new Error('Missing required intake information');
   const customerPhone = normalizeEthiopianPhone(input.phone);
   if (!customerPhone) throw new Error('INVALID_ETHIOPIAN_PHONE');
-  const serviceCharge = Number(input.serviceCharge || 0);
-  if (!Number.isFinite(serviceCharge) || serviceCharge < 0) throw new Error('INVALID_SERVICE_CHARGE');
+  const estimatedCost = Number(input.estimate);
+  if (!Number.isFinite(estimatedCost) || estimatedCost < 0) throw new Error('INVALID_ESTIMATE');
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
@@ -384,7 +384,7 @@ export async function createRepair(role, actorId, input) {
         ticketNumber: `REP-${new Date().getFullYear()}-${String(sequence).padStart(4, '0')}`,
         customerName: String(input.customer).trim(), customerPhone, deviceModel: String(input.device).trim(),
         serialOrImei: String(input.imei).trim(), physicalCondition: input.condition || null, reportedIssue: String(input.issue).trim(),
-        estimatedCost: Math.max(0, Number(input.estimate) || 0), serviceCharge, createdById: actor.id,
+        estimatedCost, serviceCharge: estimatedCost, createdById: actor.id,
       },
       include: { assignedTech: { select: { name: true } } },
     });
