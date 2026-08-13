@@ -23,6 +23,9 @@
 .repair-used-parts { margin: 0 18px 18px; padding: 14px; border: 1px solid #dce8f0; border-radius: 7px; display: grid; gap: 8px; font-size: 11px; }
 .repair-used-parts > strong { color: var(--muted); font-size: 10px; }
 .repair-used-parts span { display: flex; justify-content: space-between; }
+.repair-used-parts > small { color: var(--muted); }
+.repair-cost-breakdown { display: grid; gap: 8px; margin-top: 6px; padding-top: 12px; border-top: 1px solid #dce8f0; }
+.repair-cost-breakdown > strong { display: flex; justify-content: space-between; padding-top: 9px; border-top: 1px solid #dce8f0; color: #147a39; font-size: 13px; }
 .repair-update-form { padding: 18px; }
 .repair-update-form label { display: grid; gap: 7px; margin-bottom: 16px; font-size: 11px; font-weight: 700; }
 .repair-update-form textarea { min-height: 125px; resize: vertical; }
