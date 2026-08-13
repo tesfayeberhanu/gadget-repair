@@ -22,6 +22,9 @@ const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : pr
 function serializeRepair(ticket, role, actorId = null) {
   const name = ticket.customerName;
   const minimumProgress = { PENDING: 0, IN_PROGRESS: 25, WAITING_FOR_PARTS: 50, COMPLETED: 75, DELIVERED: 100, PICKED_UP: 100 };
+  const usedParts = (ticket.usedParts || []).map((item) => ({ id: item.part.id, sku: item.part.sku, name: item.part.name, quantity: item.quantity, unitPrice: Number(item.unitPrice || item.part.retailPrice || 0) }));
+  const partsTotal = usedParts.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
+  const finalPrice = ticket.finalPrice == null ? null : Number(ticket.finalPrice);
   return {
     id: ticket.ticketNumber,
     recordId: ticket.id,
@@ -33,13 +36,15 @@ function serializeRepair(ticket, role, actorId = null) {
     condition: ticket.physicalCondition,
     notes: ticket.technicianNotes || '',
     progress: Math.max(ticket.progress || 0, minimumProgress[ticket.status] || 0),
-    usedParts: (ticket.usedParts || []).map((item) => ({ id: item.part.id, sku: item.part.sku, name: item.part.name, quantity: item.quantity })),
+    usedParts,
+    partsTotal,
     status: statusLabel[ticket.status],
     tech: ticket.assignedTech?.name || 'Unassigned',
     due: ticket.status === 'DELIVERED' ? 'Ready for pickup' : 'Not scheduled',
-    total: role === 'Technician' ? null : Number(ticket.estimatedCost),
+    total: role === 'Technician' ? null : finalPrice ?? Number(ticket.estimatedCost),
     estimatedCost: Number(ticket.estimatedCost),
     serviceCharge: Number(ticket.serviceCharge || 0),
+    finalPrice,
     createdAt: ticket.createdAt,
     isMine: Boolean(actorId && ticket.assignedTechId === actorId),
     delivery: ticket.delivery ? { deliveredBy: ticket.delivery.deliveredBy.name, deliveredAt: ticket.delivery.deliveredAt, paymentStatus: paymentLabel[ticket.delivery.paymentStatus] } : null,
@@ -398,6 +403,7 @@ export async function advanceRepair(role, actorId, ticketNumber) {
     if (ticket.status !== 'PENDING' && ticket.assignedTechId !== actor.id) throw new Error('FORBIDDEN');
     const index = statusOrder.indexOf(ticket.status);
     if (index < 0 || index === statusOrder.length - 1) throw new Error('INVALID_STATUS');
+    if (statusOrder[index + 1] === 'DELIVERED') throw new Error('FINAL_PRICE_REQUIRED');
     const updated = await tx.repairTicket.update({
       where: { id: ticket.id },
       data: { status: statusOrder[index + 1], ...(ticket.status === 'PENDING' ? { assignedTechId: actor.id } : {}) },
@@ -435,24 +441,46 @@ export async function updateRepairProgress(role, actorId, input) {
     const progress = Number(input.progress);
     if (![25, 50, 75, 100].includes(progress) || progress < ticket.progress) throw new Error('INVALID_PROGRESS');
     const requestedParts = Array.isArray(input.parts) ? input.parts : input.partId ? [{ id: input.partId, quantity: input.partQuantity }] : [];
-    const partQuantities = new Map();
+    const partRequests = new Map();
     for (const item of requestedParts) {
       const partId = String(item.id || '');
       const quantity = Number(item.quantity);
       if (!partId || !Number.isInteger(quantity) || quantity < 1) throw new Error('INVALID_PART_QUANTITY');
-      partQuantities.set(partId, (partQuantities.get(partId) || 0) + quantity);
+      const unitPrice = item.unitPrice === undefined || item.unitPrice === '' ? null : Number(item.unitPrice);
+      if (unitPrice !== null && (!Number.isFinite(unitPrice) || unitPrice < 0)) throw new Error('INVALID_PART_PRICE');
+      const current = partRequests.get(partId) || { quantity: 0, unitPrice };
+      partRequests.set(partId, { quantity: current.quantity + quantity, unitPrice: unitPrice ?? current.unitPrice });
     }
-    if (progress >= 75 && ticket.usedParts.length === 0 && partQuantities.size === 0) throw new Error('REPAIR_PART_REQUIRED');
-    for (const [partId, quantity] of partQuantities) {
+    if (progress >= 75 && ticket.usedParts.length === 0 && partRequests.size === 0) throw new Error('REPAIR_PART_REQUIRED');
+    for (const [partId, request] of partRequests) {
+      const { quantity } = request;
       const deducted = await tx.part.updateMany({ where: { id: partId, stockQty: { gte: quantity } }, data: { stockQty: { decrement: quantity } } });
       if (deducted.count !== 1) throw new Error('INSUFFICIENT_PART_STOCK');
       const part = await tx.part.findUnique({ where: { id: partId }, select: { category: true, retailPrice: true } });
-      await tx.inventoryMovement.create({ data: { partId, ticketId: ticket.id, category: part.category || 'Other', direction: 'OUT', quantity, unitPrice: part.retailPrice } });
-      await tx.ticketPart.upsert({ where: { ticketId_partId: { ticketId: ticket.id, partId } }, create: { ticketId: ticket.id, partId, quantity }, update: { quantity: { increment: quantity } } });
+      const unitPrice = progress === 100 && request.unitPrice !== null ? request.unitPrice : Number(part.retailPrice);
+      await tx.inventoryMovement.create({ data: { partId, ticketId: ticket.id, category: part.category || 'Other', direction: 'OUT', quantity, unitPrice } });
+      await tx.ticketPart.upsert({ where: { ticketId_partId: { ticketId: ticket.id, partId } }, create: { ticketId: ticket.id, partId, quantity, unitPrice }, update: { quantity: { increment: quantity }, unitPrice } });
     }
+    if (progress === 100) {
+      const partPrices = Array.isArray(input.partPrices) ? input.partPrices : [];
+      for (const item of partPrices) {
+        const partId = String(item.id || '');
+        const unitPrice = Number(item.unitPrice);
+        if (!partId || !Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('INVALID_PART_PRICE');
+        const updatedPart = await tx.ticketPart.updateMany({ where: { ticketId: ticket.id, partId }, data: { unitPrice } });
+        if (updatedPart.count !== 1) throw new Error('INVALID_PART_PRICE');
+      }
+    }
+    const finalParts = progress === 100 ? await tx.ticketPart.findMany({ where: { ticketId: ticket.id } }) : [];
+    for (const item of finalParts) {
+      await tx.inventoryMovement.updateMany({ where: { ticketId: ticket.id, partId: item.partId, direction: 'OUT' }, data: { unitPrice: item.unitPrice } });
+    }
+    const finalPrice = progress === 100
+      ? finalParts.reduce((sum, item) => sum + item.quantity * Number(item.unitPrice), hasServiceCharge ? serviceCharge : Number(ticket.serviceCharge))
+      : null;
     const updated = await tx.repairTicket.update({
       where: { id: ticket.id },
-      data: { progress, status: repairStatusForProgress(progress), ...(notes ? { technicianNotes: notes } : {}), ...(hasServiceCharge ? { serviceCharge } : {}) },
+      data: { progress, status: repairStatusForProgress(progress), ...(notes ? { technicianNotes: notes } : {}), ...(hasServiceCharge ? { serviceCharge } : {}), ...(finalPrice !== null ? { finalPrice } : {}) },
       include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } },
     });
     await tx.auditLog.create({ data: { userId: actor.id, action: progress === 100 ? 'repair.ready_for_pickup' : 'repair.progress_updated', entity: 'RepairTicket', entityId: ticket.id } });
@@ -490,10 +518,11 @@ export async function confirmDelivery(role, actorId, input) {
     if (!ticket) throw new Error('NOT_FOUND');
     if (ticket.status === 'PICKED_UP') throw new Error('ALREADY_DELIVERED');
     if (ticket.status !== 'DELIVERED') throw new Error('NOT_READY_FOR_DELIVERY');
+    if (ticket.finalPrice == null) throw new Error('FINAL_PRICE_REQUIRED');
     const paymentStatus = ticket.sales[0]?.paymentStatus || 'PENDING';
     const delivery = await tx.deliveryRecord.create({ data: { ticketId: ticket.id, deliveredById: actor.id, paymentStatus } });
     await tx.repairTicket.update({ where: { id: ticket.id }, data: { status: 'PICKED_UP' } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.delivery_confirmed', entity: 'RepairTicket', entityId: ticket.id } });
-    return { jobId: ticket.ticketNumber, status: 'Delivered', deliveredBy: actor.name, deliveredAt: delivery.deliveredAt, payment: paymentLabel[paymentStatus], device: ticket.deviceModel, customer: ticket.customerName, technician: ticket.assignedTech?.name || 'Unassigned' };
+    return { jobId: ticket.ticketNumber, status: 'Delivered', deliveredBy: actor.name, deliveredAt: delivery.deliveredAt, payment: paymentLabel[paymentStatus], total: Number(ticket.finalPrice), device: ticket.deviceModel, customer: ticket.customerName, technician: ticket.assignedTech?.name || 'Unassigned' };
   });
 }
