@@ -4,15 +4,19 @@ import { advanceRepair, assignRepair, changePassword, confirmDelivery, createInv
 
 const port = Number(process.env.PORT || process.env.BACKEND_PORT || 4000);
 const host = process.env.HOST || '0.0.0.0';
-const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3002')
-  .split(',')
-  .map((origin) => origin.trim().replace(/\/$/, ''))
-  .filter(Boolean);
+const allowedOrigins = new Set([
+  'http://localhost:3002',
+  'https://ifixlab-staff.vercel.app',
+  ...(process.env.FRONTEND_ORIGIN || '')
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''))
+    .filter(Boolean),
+]);
 const vercelPreviewPattern = /^https:\/\/gadget-repair-r16v-[a-z0-9-]+\.vercel\.app$/;
 
 const corsHeaders = (request) => {
   const origin = request.headers.origin?.replace(/\/$/, '');
-  return origin && (allowedOrigins.includes(origin) || vercelPreviewPattern.test(origin))
+  return origin && (allowedOrigins.has(origin) || vercelPreviewPattern.test(origin))
     ? { 'Access-Control-Allow-Origin': origin, Vary: 'Origin' }
     : { Vary: 'Origin' };
 };

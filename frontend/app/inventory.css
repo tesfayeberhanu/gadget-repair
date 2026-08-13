@@ -14,5 +14,10 @@
 .inventory-tabs button.active b { background: #ffffff2c; color: white; }
 .inventory-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .inventory-controls > select { border: 1px solid var(--line); border-radius: 7px; background: white; padding: 9px 11px; color: var(--ink); font-weight: 600; }
+.inventory-balance-grid { margin-bottom: 12px; }
+.inventory-formula { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding: 13px 16px; color: var(--muted); font-size: 11px; }
+.inventory-formula strong { color: var(--ink); }
+.inventory-formula span { padding: 5px 9px; border-radius: 6px; background: #eef7fd; color: #0878c4; font-weight: 700; }
+.inventory-formula small { margin-left: auto; }
 .page-actions { display: flex; align-items: center; gap: 10px; }
-@media(max-width:760px){.inventory-controls{align-items:stretch;flex-direction:column}.inventory-tabs{width:100%}.inventory-tabs button{flex:1}.page-actions{align-items:stretch;flex-direction:column}}
+@media(max-width:760px){.inventory-controls{align-items:stretch;flex-direction:column}.inventory-tabs{width:100%}.inventory-tabs button{flex:1}.inventory-formula{align-items:flex-start;flex-direction:column}.inventory-formula small{margin-left:0}.page-actions{align-items:stretch;flex-direction:column}}
