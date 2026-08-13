@@ -23,22 +23,27 @@ async function main() {
   })));
   const [admin, technician, frontDesk] = users;
 
-  await Promise.all([
-    ['SCR-IP14P-OLED', 'iPhone 14 Pro OLED', 'Apple iPhone 14 Pro', 3, 5, 118, 189],
-    ['BAT-S23-5000', 'Galaxy S23 Battery', 'Samsung Galaxy S23', 12, 5, 28, 59],
-    ['CAM-PX8-REAR', 'Pixel 8 Rear Camera', 'Google Pixel 8', 2, 3, 62, 99],
-    ['USB-C-UNIV-02', 'USB-C Charging Port', 'Universal / Android', 24, 8, 9, 25],
-  ].map(([sku, name, compatibleDevices, stockQty, minimumStockQty, costPrice, retailPrice]) => prisma.part.upsert({
-    where: { sku }, update: { name, compatibleDevices, stockQty, minimumStockQty, costPrice, retailPrice }, create: { sku, name, compatibleDevices, stockQty, minimumStockQty, costPrice, retailPrice },
+  const parts = await Promise.all([
+    ['SCR-IP14P-OLED', 'iPhone 14 Pro OLED', 'Screen', 'Apple iPhone 14 Pro', 3, 5, 118, 189],
+    ['BAT-S23-5000', 'Galaxy S23 Battery', 'Battery', 'Samsung Galaxy S23', 12, 5, 28, 59],
+    ['CAM-PX8-REAR', 'Pixel 8 Rear Camera', 'Camera', 'Google Pixel 8', 2, 3, 62, 99],
+    ['USB-C-UNIV-02', 'USB-C Charging Port', 'Part', 'Universal / Android', 24, 8, 9, 25],
+  ].map(([sku, name, category, compatibleDevices, stockQty, minimumStockQty, costPrice, retailPrice]) => prisma.part.upsert({
+    where: { sku }, update: { name, category, compatibleDevices, stockQty, minimumStockQty, costPrice, retailPrice }, create: { sku, name, category, compatibleDevices, stockQty, minimumStockQty, costPrice, retailPrice },
   })));
+  for (const part of parts) {
+    if (part.stockQty > 0 && await prisma.inventoryMovement.count({ where: { partId: part.id } }) === 0) {
+      await prisma.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: 'IN', quantity: part.stockQty, unitPrice: part.costPrice } });
+    }
+  }
 
   const tickets = await Promise.all([
-    ['REP-2026-0142', 'Maya Chen', '+251 911 456 801', 'iPhone 14 Pro', '351234567890142', 'Damaged', 'Screen replacement', 'IN_PROGRESS', 285, technician.id],
-    ['REP-2026-0141', 'Samuel Okoro', '+251 916 048 241', 'Samsung S23', '351234567890141', 'Good — normal wear', 'Battery draining', 'WAITING_FOR_PARTS', 120, null],
-    ['REP-2026-0140', 'Lina Haddad', '+251 927 540 112', 'MacBook Air M2', 'C02M200140', 'Severely damaged', 'Liquid damage', 'PENDING', 340, null],
-    ['REP-2026-0139', 'Noah Williams', '+251 929 612 087', 'Google Pixel 8', '351234567890139', 'Good — normal wear', 'Camera not focusing', 'COMPLETED', 195, technician.id],
-  ].map(([ticketNumber, customerName, customerPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, assignedTechId]) => prisma.repairTicket.upsert({
-    where: { ticketNumber }, update: {}, create: { ticketNumber, customerName, customerPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, assignedTechId, createdById: frontDesk.id },
+    ['REP-2026-0142', 'Maya Chen', '+251 911 456 801', 'iPhone 14 Pro', '351234567890142', 'Damaged', 'Screen replacement', 'IN_PROGRESS', 285, 45, technician.id],
+    ['REP-2026-0141', 'Samuel Okoro', '+251 916 048 241', 'Samsung S23', '351234567890141', 'Good — normal wear', 'Battery draining', 'WAITING_FOR_PARTS', 120, 35, null],
+    ['REP-2026-0140', 'Lina Haddad', '+251 927 540 112', 'MacBook Air M2', 'C02M200140', 'Severely damaged', 'Liquid damage', 'PENDING', 340, 80, null],
+    ['REP-2026-0139', 'Noah Williams', '+251 929 612 087', 'Google Pixel 8', '351234567890139', 'Good — normal wear', 'Camera not focusing', 'COMPLETED', 195, 40, technician.id],
+  ].map(([ticketNumber, customerName, customerPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, serviceCharge, assignedTechId]) => prisma.repairTicket.upsert({
+    where: { ticketNumber }, update: {}, create: { ticketNumber, customerName, customerPhone, deviceModel, serialOrImei, physicalCondition, reportedIssue, status, estimatedCost, serviceCharge, assignedTechId, createdById: frontDesk.id },
   })));
 
   if (await prisma.sale.count() === 0) {

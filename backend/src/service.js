@@ -16,6 +16,7 @@ const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FO
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', REFUNDED: 'Refunded' };
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
 const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
+const accessoryCategories = new Set(['Accessory', 'Cable']);
 const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : progress >= 75 ? 'COMPLETED' : progress >= 50 ? 'WAITING_FOR_PARTS' : 'IN_PROGRESS';
 
 function serializeRepair(ticket, role, actorId = null) {
@@ -38,6 +39,7 @@ function serializeRepair(ticket, role, actorId = null) {
     due: ticket.status === 'DELIVERED' ? 'Ready for pickup' : 'Not scheduled',
     total: role === 'Technician' ? null : Number(ticket.estimatedCost),
     estimatedCost: Number(ticket.estimatedCost),
+    serviceCharge: Number(ticket.serviceCharge || 0),
     createdAt: ticket.createdAt,
     isMine: Boolean(actorId && ticket.assignedTechId === actorId),
     delivery: ticket.delivery ? { deliveredBy: ticket.delivery.deliveredBy.name, deliveredAt: ticket.delivery.deliveredAt, paymentStatus: paymentLabel[ticket.delivery.paymentStatus] } : null,
@@ -46,8 +48,8 @@ function serializeRepair(ticket, role, actorId = null) {
 }
 
 function serializePart(part, role) {
-  const base = { id: part.id, sku: part.sku, name: part.name, category: part.category || 'Other', description: part.description || '', device: part.compatibleDevices || 'Universal', stock: part.stockQty, min: part.minimumStockQty, createdAt: part.createdAt, updatedAt: part.updatedAt };
-  return role === 'Admin' ? { ...base, cost: Number(part.costPrice), price: Number(part.retailPrice) } : base;
+  const base = { id: part.id, sku: part.sku, name: part.name, category: part.category || 'Other', description: part.description || '', device: part.compatibleDevices || 'Universal', stock: part.stockQty, min: part.minimumStockQty, sellingPrice: Number(part.retailPrice), price: Number(part.retailPrice), createdAt: part.createdAt, updatedAt: part.updatedAt };
+  return role === 'Admin' ? { ...base, buyingPrice: Number(part.costPrice), cost: Number(part.costPrice) } : base;
 }
 
 function serializeSale(sale) {
@@ -126,13 +128,16 @@ export async function getWorkspace(role, actorId) {
     const item = permissionNavigation[permission];
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
-  const [tickets, parts, sales, team, appointments, technicians] = await Promise.all([
+  const [tickets, parts, sales, team, appointments, technicians, inventoryMovements] = await Promise.all([
     prisma.repairTicket.findMany({ include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } }, delivery: { include: { deliveredBy: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' && !actor.permissions.includes('MANAGE_POS') ? [] : prisma.sale.findMany({ include: { ticket: { select: { customerName: true, deviceModel: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
     role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true }, orderBy: { createdAt: 'asc' } }) : [],
     role === 'Front Desk' ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
     role === 'Front Desk' ? prisma.user.findMany({ where: { role: 'TECHNICIAN', active: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [],
+    role === 'Admin' || actor.permissions.includes('VIEW_REPORTS')
+      ? prisma.inventoryMovement.findMany()
+      : [],
   ]);
 
   const visibleTickets = role === 'Technician'
@@ -143,7 +148,17 @@ export async function getWorkspace(role, actorId) {
   const active = visibleTickets.filter((ticket) => !['DELIVERED', 'PICKED_UP'].includes(ticket.status));
   const technicianTickets = role === 'Technician' ? tickets.filter((ticket) => ticket.assignedTechId === actor.id) : [];
   const paidRevenue = sales.filter((sale) => sale.paymentStatus === 'PAID').reduce((sum, sale) => sum + Number(sale.totalAmount), 0);
-  const reportMetrics = { totalRevenue: paidRevenue, grossMargin: 54.2, technicianYield: 6.4 };
+  const inventoryRevenue = inventoryMovements.reduce((totals, movement) => {
+    const group = accessoryCategories.has(movement.category) ? 'accessories' : 'spareParts';
+    const value = movement.quantity * Number(movement.unitPrice);
+    totals[group][movement.direction === 'IN' ? 'quantityInValue' : 'quantityOutValue'] += value;
+    return totals;
+  }, { spareParts: { quantityInValue: 0, quantityOutValue: 0 }, accessories: { quantityInValue: 0, quantityOutValue: 0 } });
+  const sparePartsRevenue = inventoryRevenue.spareParts.quantityInValue - inventoryRevenue.spareParts.quantityOutValue;
+  const accessoriesRevenue = inventoryRevenue.accessories.quantityInValue - inventoryRevenue.accessories.quantityOutValue;
+  const completedTickets = tickets.filter((ticket) => ['DELIVERED', 'PICKED_UP'].includes(ticket.status));
+  const maintenanceRevenue = completedTickets.reduce((sum, ticket) => sum + Number(ticket.serviceCharge || 0), 0);
+  const reportMetrics = { totalRevenue: sparePartsRevenue + accessoriesRevenue + maintenanceRevenue, sparePartsRevenue, accessoriesRevenue, maintenanceRevenue, completedJobs: completedTickets.length, paidSalesRevenue: paidRevenue, grossMargin: 54.2, technicianYield: 6.4 };
   const dashboard = role === 'Technician'
     ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'DELIVERED').length }
     : role === 'Front Desk'
@@ -249,21 +264,13 @@ export async function deactivateStaff(role, actorId, id) {
 
 export async function createInventoryItem(role, actorId, input) {
   requireRole(role, ['Admin']);
-  const name = String(input.name || '').trim();
-  const category = String(input.category || '').trim();
-  const description = String(input.description || '').trim() || null;
-  const stockQty = Number(input.quantity);
-  const unitPrice = Number(input.unitPrice);
-  const categories = ['Screen', 'Battery', 'Accessory', 'Cable', 'Camera', 'Part', 'Other'];
-  if (!name || !categories.includes(category) || input.quantity === '' || input.unitPrice === ''
-    || !Number.isInteger(stockQty) || stockQty < 0 || !Number.isFinite(unitPrice) || unitPrice < 0) {
-    throw new Error('INVALID_INVENTORY_ITEM');
-  }
+  const data = inventoryInput(input);
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
     const sku = `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
-    const part = await tx.part.create({ data: { sku, name, category, description, stockQty, minimumStockQty: 5, costPrice: unitPrice, retailPrice: unitPrice } });
+    const part = await tx.part.create({ data: { sku, ...data, minimumStockQty: 5 } });
+    if (part.stockQty > 0) await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: 'IN', quantity: part.stockQty, unitPrice: part.costPrice } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.created', entity: 'Part', entityId: part.id } });
     return serializePart(part, role);
   });
@@ -274,11 +281,12 @@ function inventoryInput(input) {
   const category = String(input.category || '').trim();
   const description = String(input.description || '').trim() || null;
   const stockQty = Number(input.quantity);
-  const unitPrice = Number(input.unitPrice);
+  const costPrice = Number(input.buyingPrice ?? input.unitPrice);
+  const retailPrice = Number(input.sellingPrice ?? input.unitPrice);
   const categories = ['Screen', 'Battery', 'Accessory', 'Cable', 'Camera', 'Part', 'Other'];
-  if (!name || !categories.includes(category) || input.quantity === '' || input.unitPrice === ''
-    || !Number.isInteger(stockQty) || stockQty < 0 || !Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('INVALID_INVENTORY_ITEM');
-  return { name, category, description, stockQty, costPrice: unitPrice, retailPrice: unitPrice };
+  if (!name || !categories.includes(category) || input.quantity === '' || input.buyingPrice === '' || input.sellingPrice === ''
+    || !Number.isInteger(stockQty) || stockQty < 0 || !Number.isFinite(costPrice) || costPrice < 0 || !Number.isFinite(retailPrice) || retailPrice < 0) throw new Error('INVALID_INVENTORY_ITEM');
+  return { name, category, description, stockQty, costPrice, retailPrice };
 }
 
 export async function updateInventoryItem(role, actorId, input) {
@@ -290,6 +298,8 @@ export async function updateInventoryItem(role, actorId, input) {
     const existing = await tx.part.findUnique({ where: { id: input.id } });
     if (!existing) throw new Error('NOT_FOUND');
     const part = await tx.part.update({ where: { id: input.id }, data });
+    const quantityChange = part.stockQty - existing.stockQty;
+    if (quantityChange !== 0) await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: quantityChange > 0 ? 'IN' : 'OUT', quantity: Math.abs(quantityChange), unitPrice: quantityChange > 0 ? part.costPrice : part.retailPrice } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.updated', entity: 'Part', entityId: part.id } });
     return serializePart(part, role);
   });
@@ -357,6 +367,8 @@ export async function createRepair(role, actorId, input) {
   if (required.some((field) => !String(input[field] || '').trim())) throw new Error('Missing required intake information');
   const customerPhone = normalizeEthiopianPhone(input.phone);
   if (!customerPhone) throw new Error('INVALID_ETHIOPIAN_PHONE');
+  const serviceCharge = Number(input.serviceCharge || 0);
+  if (!Number.isFinite(serviceCharge) || serviceCharge < 0) throw new Error('INVALID_SERVICE_CHARGE');
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
@@ -367,7 +379,7 @@ export async function createRepair(role, actorId, input) {
         ticketNumber: `REP-${new Date().getFullYear()}-${String(sequence).padStart(4, '0')}`,
         customerName: String(input.customer).trim(), customerPhone, deviceModel: String(input.device).trim(),
         serialOrImei: String(input.imei).trim(), physicalCondition: input.condition || null, reportedIssue: String(input.issue).trim(),
-        estimatedCost: Math.max(0, Number(input.estimate) || 0), createdById: actor.id,
+        estimatedCost: Math.max(0, Number(input.estimate) || 0), serviceCharge, createdById: actor.id,
       },
       include: { assignedTech: { select: { name: true } } },
     });
@@ -400,6 +412,9 @@ export async function updateRepairProgress(role, actorId, input) {
   requireRole(role, ['Technician']);
   const action = input.action;
   const notes = String(input.notes || '').trim();
+  const hasServiceCharge = input.serviceCharge !== undefined && input.serviceCharge !== '';
+  const serviceCharge = Number(input.serviceCharge);
+  if (hasServiceCharge && (!Number.isFinite(serviceCharge) || serviceCharge < 0)) throw new Error('INVALID_SERVICE_CHARGE');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
     const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber: input.id }, include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } } });
@@ -409,7 +424,7 @@ export async function updateRepairProgress(role, actorId, input) {
       if (ticket.status !== 'PENDING' || ticket.assignedTechId !== actor.id) throw new Error('JOB_NOT_ASSIGNED');
       const updated = await tx.repairTicket.update({
         where: { id: ticket.id },
-        data: { status: 'IN_PROGRESS', progress: 25, ...(notes ? { technicianNotes: notes } : {}) },
+        data: { status: 'IN_PROGRESS', progress: 25, ...(notes ? { technicianNotes: notes } : {}), ...(hasServiceCharge ? { serviceCharge } : {}) },
         include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } },
       });
       await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.taken', entity: 'RepairTicket', entityId: ticket.id } });
@@ -431,11 +446,13 @@ export async function updateRepairProgress(role, actorId, input) {
     for (const [partId, quantity] of partQuantities) {
       const deducted = await tx.part.updateMany({ where: { id: partId, stockQty: { gte: quantity } }, data: { stockQty: { decrement: quantity } } });
       if (deducted.count !== 1) throw new Error('INSUFFICIENT_PART_STOCK');
+      const part = await tx.part.findUnique({ where: { id: partId }, select: { category: true, retailPrice: true } });
+      await tx.inventoryMovement.create({ data: { partId, ticketId: ticket.id, category: part.category || 'Other', direction: 'OUT', quantity, unitPrice: part.retailPrice } });
       await tx.ticketPart.upsert({ where: { ticketId_partId: { ticketId: ticket.id, partId } }, create: { ticketId: ticket.id, partId, quantity }, update: { quantity: { increment: quantity } } });
     }
     const updated = await tx.repairTicket.update({
       where: { id: ticket.id },
-      data: { progress, status: repairStatusForProgress(progress), ...(notes ? { technicianNotes: notes } : {}) },
+      data: { progress, status: repairStatusForProgress(progress), ...(notes ? { technicianNotes: notes } : {}), ...(hasServiceCharge ? { serviceCharge } : {}) },
       include: { assignedTech: { select: { name: true } }, usedParts: { include: { part: true } } },
     });
     await tx.auditLog.create({ data: { userId: actor.id, action: progress === 100 ? 'repair.ready_for_pickup' : 'repair.progress_updated', entity: 'RepairTicket', entityId: ticket.id } });

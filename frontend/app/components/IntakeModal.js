@@ -45,6 +45,7 @@ export default function IntakeModal({ close, submit }) {
             <label>IMEI / Serial<input name="imei" placeholder="Scan or type" required /></label>
             <label>Color / ቀለም<input name="color" placeholder="Color" /></label>
             <label>Estimate (ETB)<input name="estimate" type="number" min="0" step="0.01" placeholder="0.00" /></label>
+            <label>Service charge (ETB)<input name="serviceCharge" type="number" min="0" step="0.01" defaultValue="0" required /></label>
           </div>
         </section>
         <section className="intake-section"><h3>Accessories / ተጨማሪ እቃዎች</h3><div className="check-grid">{['SIM', 'Memory card', 'Tray', 'Charger', 'Case'].map((item) => <label className="check-pill" key={item}><input type="checkbox" name="accessories" value={item} /><span>{item}</span></label>)}</div></section>

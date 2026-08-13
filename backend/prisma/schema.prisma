@@ -84,6 +84,7 @@ model RepairTicket {
   progress          Int          @default(0)
   status            TicketStatus @default(PENDING)
   estimatedCost     Decimal      @db.Decimal(10, 2)
+  serviceCharge     Decimal      @default(0) @db.Decimal(10, 2)
 
   createdById String
   createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
@@ -91,11 +92,12 @@ model RepairTicket {
   assignedTechId String?
   assignedTech   User?   @relation("AssignedTech", fields: [assignedTechId], references: [id])
 
-  usedParts TicketPart[]
-  sales     Sale[]
-  delivery  DeliveryRecord?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  usedParts          TicketPart[]
+  inventoryMovements InventoryMovement[]
+  sales              Sale[]
+  delivery           DeliveryRecord?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 
   @@index([status])
   @@index([customerPhone])
@@ -103,19 +105,37 @@ model RepairTicket {
 }
 
 model Part {
-  id                String       @id @default(uuid())
-  sku               String       @unique
+  id                String              @id @default(uuid())
+  sku               String              @unique
   name              String
   category          String?
   description       String?
   compatibleDevices String?
   stockQty          Int
-  minimumStockQty   Int          @default(5)
-  costPrice         Decimal      @db.Decimal(10, 2)
-  retailPrice       Decimal      @db.Decimal(10, 2)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  minimumStockQty   Int                 @default(5)
+  costPrice         Decimal             @db.Decimal(10, 2)
+  retailPrice       Decimal             @db.Decimal(10, 2)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   ticketParts       TicketPart[]
+  inventoryMovements InventoryMovement[]
+}
+
+model InventoryMovement {
+  id        String        @id @default(uuid())
+  partId    String?
+  part      Part?         @relation(fields: [partId], references: [id], onDelete: SetNull)
+  ticketId  String?
+  ticket    RepairTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  category  String
+  direction String
+  quantity  Int
+  unitPrice Decimal       @db.Decimal(10, 2)
+  createdAt DateTime      @default(now())
+
+  @@index([partId, direction])
+  @@index([ticketId])
+  @@index([createdAt])
 }
 
 model TicketPart {
