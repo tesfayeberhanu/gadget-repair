@@ -1,4 +1,4 @@
-const icons = { Overview: '⌂', Repairs: '⌁', Inventory: '□', Expenses: '−', 'Point of Sale': '◇', Customers: '♙', Reports: '↗', Team: '♧', Settings: '⚙', 'New Intake': '＋', Appointments: '◷' };
+const icons = { Overview: '⌂', Repairs: '⌁', Inventory: '□', Expense: '−', 'Point of Sale': '◇', Customers: '♙', Reports: '↗', Team: '♧', Settings: '⚙', 'New Intake': '＋', Appointments: '◷' };
 
 export default function AppSidebar({ role, user, active, navigation, repairs, setActive, openIntake, logout, mobileOpen, closeMobileNav }) {
   const navigate = (item) => { item === 'New Intake' ? openIntake() : setActive(item); closeMobileNav(); };

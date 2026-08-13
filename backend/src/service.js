@@ -3,7 +3,7 @@ import { createSession, hashPassword, requireRole, verifyPassword } from './auth
 import { createHash, randomBytes } from 'node:crypto';
 
 const navigation = {
-  Admin: ['Overview', 'Repairs', 'Inventory', 'Expenses', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Settings'],
+  Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Settings'],
   Technician: ['Overview', 'Repairs', 'Inventory'],
   'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers'],
 };
