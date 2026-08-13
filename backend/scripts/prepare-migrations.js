@@ -33,15 +33,41 @@ if (hasPaymentStatus) {
 
 let failedMigration = false;
 if (hasMigrationTable) {
-  const failed = await prisma.$queryRawUnsafe(`
-    SELECT 1
+  const history = await prisma.$queryRawUnsafe(`
+    SELECT
+      migration_name AS "migrationName",
+      started_at AS "startedAt",
+      finished_at AS "finishedAt",
+      rolled_back_at AS "rolledBackAt",
+      applied_steps_count AS "appliedStepsCount",
+      logs
     FROM "_prisma_migrations"
     WHERE migration_name = $1
-      AND finished_at IS NULL
-      AND rolled_back_at IS NULL
-    LIMIT 1
+       OR (finished_at IS NULL AND rolled_back_at IS NULL)
+    ORDER BY started_at DESC
+    LIMIT 10
   `, creditMigration);
-  failedMigration = failed.length > 0;
+
+  for (const migration of history) {
+    const state = migration.finishedAt
+      ? 'applied'
+      : migration.rolledBackAt
+        ? 'rolled_back'
+        : 'failed';
+    console.log(`Migration history: ${migration.migrationName} state=${state} started=${migration.startedAt.toISOString()} steps=${migration.appliedStepsCount}`);
+    if (migration.logs) {
+      const sanitizedLogs = migration.logs
+        .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[database-url-redacted]')
+        .slice(-6000);
+      console.log(`Stored migration error:\n${sanitizedLogs}`);
+    }
+  }
+
+  failedMigration = history.some((migration) => (
+    migration.migrationName === creditMigration
+      && !migration.finishedAt
+      && !migration.rolledBackAt
+  ));
 }
 
 if (failedMigration) {
