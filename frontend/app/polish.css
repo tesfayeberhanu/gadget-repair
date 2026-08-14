@@ -47,8 +47,23 @@ select[aria-label^="Sort"] option { color: #18344e; background: white; font-weig
 .page-actions:has(select[aria-label^="Sort"]) { padding: 4px; border-radius: 999px; background: #f2f8fc; }
 .page-actions:has(select[aria-label^="Sort"]) select { box-shadow: none; }
 .inventory-controls > select[aria-label^="Sort"] { margin-bottom: 16px; }
+.list-toolbar { align-items: center; flex-wrap: wrap; }
+.list-toolbar .list-search { min-width: min(280px, 100%); flex: 1 1 280px; }
+.list-search input[type="search"]::-webkit-search-cancel-button { display: none; }
+.search-clear { width: 28px; height: 28px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: #edf5fa; color: #6683a4; font-size: 18px; line-height: 1; }
+.search-clear:hover { background: #dff2fd; color: #0878c4; transform: scale(1.06); }
+.result-count { flex: 0 0 auto; padding: 5px 9px; border-radius: 999px; background: #edf7fd; color: #52708d; font-size: 10px; font-weight: 750; white-space: nowrap; }
+.list-toolbar > select, .list-toolbar label select { min-height: 38px; border: 1px solid #d7e5ef; border-radius: 8px; padding: 8px 10px; background: white; color: #28445f; font-size: 11px; font-weight: 700; }
+.list-toolbar > select[aria-label^="Filter"] { min-width: 145px; }
+.inventory-list-toolbar { flex: 1 1 620px; margin-bottom: 16px; padding: 10px; }
+.expense-controls.list-toolbar { justify-content: flex-start; }
+.list-empty { grid-column: 1 / -1; width: 100%; }
 @media(max-width:760px) {
   select[aria-label^="Sort"] { width: 100%; min-width: 0; }
   .toolbar:has(select[aria-label^="Sort"]) { align-items: stretch; flex-direction: column; }
   .page-actions:has(select[aria-label^="Sort"]) { border-radius: 10px; }
+  .list-toolbar .list-search { min-width: 0; flex-basis: auto; width: 100%; }
+  .list-toolbar > select, .list-toolbar > select[aria-label^="Filter"], .list-toolbar label, .list-toolbar label select { width: 100%; min-width: 0; }
+  .result-count { align-self: flex-start; }
+  .inventory-list-toolbar { margin-bottom: 0; }
 }

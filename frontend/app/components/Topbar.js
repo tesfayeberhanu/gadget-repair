@@ -1,7 +1,18 @@
+import { matchesSearch, normalizeSearch, stableSort } from '../utils/listTools.mjs';
+
 export default function Topbar({ role, user, search, setSearch, repairs = [], openRepairSearch, openMobileNav, notificationCount = 0, openNotifications }) {
-  const query = search.trim().toLowerCase();
-  const results = query ? repairs.filter((repair) => [repair.id, repair.customer, repair.phone, repair.imei, repair.device]
-    .some((value) => String(value || '').toLowerCase().includes(query))).slice(0, 6) : [];
+  const query = normalizeSearch(search);
+  const results = query ? stableSort(
+    repairs.filter((repair) => matchesSearch([repair.id, repair.customer, repair.phone, repair.imei, repair.device, repair.issue, repair.status, repair.tech], query)),
+    (left, right) => {
+      const leftId = normalizeSearch(left.id);
+      const rightId = normalizeSearch(right.id);
+      const leftRank = leftId === query ? 0 : leftId.startsWith(query) ? 1 : normalizeSearch(left.customer).startsWith(query) ? 2 : 3;
+      const rightRank = rightId === query ? 0 : rightId.startsWith(query) ? 1 : normalizeSearch(right.customer).startsWith(query) ? 2 : 3;
+      return leftRank - rightRank || new Date(right.createdAt) - new Date(left.createdAt);
+    },
+    (repair) => repair.id,
+  ).slice(0, 6) : [];
   const submitSearch = (event) => {
     event.preventDefault();
     if (!query) return;

@@ -8,6 +8,7 @@ import IntakeModal from './components/IntakeModal';
 import LoginScreen from './components/LoginScreen';
 import SettingsView from './components/SettingsView';
 import { AppointmentsView, RepairsView, InventoryView, ExpensesView, SalesView, CustomersView, ReportsView, TeamView } from './components/ModuleViews';
+import { matchesSearch } from './utils/listTools.mjs';
 
 async function apiRequest(path, token, options = {}) {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
@@ -62,7 +63,10 @@ export default function HomePage() {
 
   const repairs = workspace?.repairs || [];
   const assignedNewRepairs = role === 'Technician' ? repairs.filter((repair) => repair.status === 'Received' && repair.isMine) : [];
-  const filteredRepairs = useMemo(() => { const query = search.toLowerCase(); return repairs.filter((repair) => Object.values(repair).join(' ').toLowerCase().includes(query)); }, [repairs, search]);
+  const filteredRepairs = useMemo(() => repairs.filter((repair) => matchesSearch([
+    repair.id, repair.customer, repair.phone, repair.imei, repair.device, repair.issue, repair.status, repair.tech,
+    repair.paymentStatus, repair.invoiceTotal, repair.balanceDue,
+  ], search)), [repairs, search]);
   const openRepairSearch = (repair) => {
     if (repair) setSearch(repair.id);
     setActive('Repairs');
@@ -230,7 +234,7 @@ export default function HomePage() {
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
   const shared = { role, user, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], expenses: workspace?.expenses || [], sales: workspace?.sales || [], customers: workspace?.customers || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} createCustomer={createCustomer} updateCustomer={updateCustomer} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} totalRepairs={repairs.length} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} createCustomer={createCustomer} updateCustomer={updateCustomer} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} mobileOpen={mobileNavOpen} closeMobileNav={() => setMobileNavOpen(false)} />
