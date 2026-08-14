@@ -72,6 +72,14 @@ export default function HomePage() {
     if (repair) setSearch(repair.id);
     setActive('Repairs');
   };
+  const openCustomerSearch = (customer) => {
+    setSearch('');
+    setActive('Customers');
+  };
+  const openAppointmentSearch = (appointment) => {
+    setSearch('');
+    setActive('Appointments');
+  };
   const openIntake = (customer = null) => {
     if (role !== 'Front Desk') return notify('Device intake is available to Front Desk only');
     setIntakeCustomer(customer);
@@ -244,7 +252,7 @@ export default function HomePage() {
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} mobileOpen={mobileNavOpen} closeMobileNav={() => setMobileNavOpen(false)} />
-    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} repairs={repairs} openRepairSearch={openRepairSearch} openMobileNav={() => setMobileNavOpen(true)} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
+    <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} repairs={repairs} customers={workspace?.customers || []} inventory={workspace?.inventory || []} appointments={workspace?.appointments || []} openRepairSearch={openRepairSearch} openCustomerSearch={openCustomerSearch} openAppointmentSearch={openAppointmentSearch} openMobileNav={() => setMobileNavOpen(true)} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
     {showIntake && <IntakeModal customer={intakeCustomer} close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
   </div>;
 }
