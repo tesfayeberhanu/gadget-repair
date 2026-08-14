@@ -19,6 +19,10 @@ export function canCompleteWithBalance(isCreditSale, balanceDue) {
   return Boolean(isCreditSale) || roundMoney(balanceDue) === 0;
 }
 
+export function creditEligibleForDelivery(ticketStatus, isCreditCustomer, isCreditSale) {
+  return ticketStatus === 'PICKED_UP' ? Boolean(isCreditSale) : Boolean(isCreditCustomer);
+}
+
 export function finalizeInvoiceSnapshot(invoice, { totalAmount, isCreditCustomer, now = new Date() }) {
   if (invoice.revenueRecognizedAt) return invoice;
   const total = roundMoney(totalAmount);

@@ -192,6 +192,40 @@ export default function HomePage() {
     return () => window.clearInterval(poll);
   }, [token, role]);
 
+  useEffect(() => {
+    if (!token || role === 'Technician') return undefined;
+    let active = true;
+    let refreshInFlight = false;
+
+    const refreshWorkspace = async () => {
+      if (!active || refreshInFlight || document.visibilityState !== 'visible') return;
+      refreshInFlight = true;
+      try {
+        const next = await apiRequest('/api/workspace', token);
+        if (!active) return;
+        setWorkspace(next); setRole(next.role); setUser(next.user); setError('');
+      } catch (requestError) {
+        if (!active) return;
+        if (requestError.message === 'Please sign in') { localStorage.removeItem('ifixlab_token'); setToken(null); setWorkspace(null); }
+        setError(requestError.message);
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+    const refreshWhenFocused = () => { void refreshWorkspace(); };
+    const refreshWhenVisible = () => { if (document.visibilityState === 'visible') void refreshWorkspace(); };
+    const refreshInterval = window.setInterval(() => { void refreshWorkspace(); }, 15000);
+
+    window.addEventListener('focus', refreshWhenFocused);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      active = false;
+      window.clearInterval(refreshInterval);
+      window.removeEventListener('focus', refreshWhenFocused);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
+  }, [token, role]);
+
   if (token === undefined || (token && !workspace && !error)) return <div className="loading-screen"><span className="loader"></span><p>Loading iFixLab251 workspace…</p></div>;
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 

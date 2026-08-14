@@ -1,7 +1,7 @@
 import { prisma } from './prisma.js';
 import { createSession, hashPassword, requireRole, verifyPassword } from './auth.js';
 import { createHash, randomBytes } from 'node:crypto';
-import { accountingTotals, canCompleteWithBalance, creditCustomerValue, finalizeInvoiceSnapshot, invoiceFinancials } from './accounting.js';
+import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials } from './accounting.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Settings'],
@@ -60,6 +60,7 @@ function serializeRepair(ticket, role, actorId = null) {
     balanceDue: canSeeBilling ? invoice?.balanceDue ?? finalPrice ?? 0 : null,
     paymentStatus: canSeeBilling ? invoice ? paymentLabel[invoice.paymentStatus] : 'Not invoiced' : null,
     isCreditSale: canSeeBilling ? Boolean(sale?.isCreditSale) : null,
+    creditEligibleForDelivery: creditEligibleForDelivery(ticket.status, ticket.customer?.isCreditCustomer, sale?.isCreditSale),
     createdAt: ticket.createdAt,
     isMine: Boolean(actorId && ticket.assignedTechId === actorId),
     delivery: ticket.delivery ? { deliveredBy: ticket.delivery.deliveredBy.name, deliveredAt: ticket.delivery.deliveredAt, paymentStatus: paymentLabel[ticket.delivery.paymentStatus] } : null,
@@ -709,8 +710,10 @@ export async function confirmDelivery(role, actorId, input) {
     if (Number(input.paymentAmount || 0) > 0) await addPaymentInTransaction(tx, actor, invoice, input);
     const refreshedSale = await tx.sale.findUnique({ where: { id: invoice.id }, include: { payments: true } });
     const financials = invoiceFinancials(refreshedSale);
-    if (!canCompleteWithBalance(refreshedSale.isCreditSale, financials.balanceDue)) throw new Error('PAYMENT_REQUIRED');
+    const isCreditCustomer = Boolean(ticket.customer?.isCreditCustomer);
+    if (!canCompleteWithBalance(isCreditCustomer, financials.balanceDue)) throw new Error('PAYMENT_REQUIRED');
     const paymentStatus = financials.paymentStatus;
+    await tx.sale.update({ where: { id: refreshedSale.id }, data: { isCreditSale: isCreditCustomer } });
     const delivery = await tx.deliveryRecord.create({ data: { ticketId: ticket.id, deliveredById: actor.id, paymentStatus } });
     await tx.repairTicket.update({ where: { id: ticket.id }, data: { status: 'PICKED_UP' } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'repair.delivery_confirmed', entity: 'RepairTicket', entityId: ticket.id } });

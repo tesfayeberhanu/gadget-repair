@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { accountingTotals, canCompleteWithBalance, creditCustomerValue, finalizeInvoiceSnapshot, invoiceFinancials } from '../src/accounting.js';
+import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials } from '../src/accounting.js';
 
 const finalizedInvoice = (payments = [], overrides = {}) => ({
   id: 'invoice-1',
@@ -64,6 +64,13 @@ test('regular customers cannot complete with a balance; credit customers can', (
   assert.equal(canCompleteWithBalance(false, 0), true);
   assert.equal(canCompleteWithBalance(true, 100), true);
   assert.equal(canCompleteWithBalance(true, 60), true);
+});
+
+test('delivery eligibility follows the current customer until delivery and the stored sale afterward', () => {
+  assert.equal(creditEligibleForDelivery('DELIVERED', true, false), true);
+  assert.equal(creditEligibleForDelivery('DELIVERED', false, true), false);
+  assert.equal(creditEligibleForDelivery('PICKED_UP', false, true), true);
+  assert.equal(creditEligibleForDelivery('PICKED_UP', true, false), false);
 });
 
 test('payment reversals reduce collections and restore the invoice balance without changing revenue', () => {
