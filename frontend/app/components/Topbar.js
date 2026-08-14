@@ -50,7 +50,6 @@ export default function Topbar({ role, user, search, setSearch, repairs = [], cu
           </button>)}</div>}
         </> : <p>No results found for "{search.trim()}"</p>}
       </div>}
-      </div>}
     </form>
     <div className="top-actions">
       <span className="role-badge">{user?.name || role} · {role}</span>
