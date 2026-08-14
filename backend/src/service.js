@@ -535,19 +535,25 @@ export async function createRepair(role, actorId, input) {
   requireRole(role, ['Front Desk']);
   const required = ['customer', 'phone', 'device', 'imei', 'issue'];
   if (required.some((field) => !String(input[field] || '').trim())) throw new Error('Missing required intake information');
-  const customerPhone = normalizeEthiopianPhone(input.phone);
-  if (!customerPhone) throw new Error('INVALID_ETHIOPIAN_PHONE');
+  const suppliedCustomerPhone = normalizeEthiopianPhone(input.phone);
+  if (!suppliedCustomerPhone) throw new Error('INVALID_ETHIOPIAN_PHONE');
   const estimatedCost = Number(input.estimate);
   if (!Number.isFinite(estimatedCost) || estimatedCost < 0) throw new Error('INVALID_ESTIMATE');
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    const customerName = String(input.customer).trim();
-    const customer = await tx.customer.upsert({
-      where: { phone: customerPhone },
-      create: { name: customerName, phone: customerPhone, isCreditCustomer: creditCustomerValue(input.isCreditCustomer) },
-      update: { name: customerName },
-    });
+    const selectedCustomerId = String(input.customerId || '').trim();
+    const suppliedCustomerName = String(input.customer).trim();
+    const customer = selectedCustomerId
+      ? await tx.customer.findUnique({ where: { id: selectedCustomerId } })
+      : await tx.customer.upsert({
+        where: { phone: suppliedCustomerPhone },
+        create: { name: suppliedCustomerName, phone: suppliedCustomerPhone, isCreditCustomer: creditCustomerValue(input.isCreditCustomer) },
+        update: { name: suppliedCustomerName },
+      });
+    if (!customer) throw new Error('NOT_FOUND');
+    const customerName = customer.name;
+    const customerPhone = customer.phone;
     const latest = await tx.repairTicket.findFirst({ orderBy: { ticketNumber: 'desc' }, select: { ticketNumber: true } });
     const sequence = Math.max(0, Number(latest?.ticketNumber.split('-').pop()) || 0) + 1;
     const ticket = await tx.repairTicket.create({

@@ -19,7 +19,7 @@ const CheckGroup = ({ title, amharic, name, options }) => <fieldset className="i
   <div className="check-grid">{options.map((option) => <label key={option} className="check-pill"><input type="checkbox" name={name} value={`${title}: ${option}`} /><span>{option}</span></label>)}</div>
 </fieldset>;
 
-export default function IntakeModal({ close, submit }) {
+export default function IntakeModal({ customer = null, close, submit }) {
   const [brand, setBrand] = useState('Apple');
   const [submitting, setSubmitting] = useState(false);
   const handleSubmit = async (event) => {
@@ -31,12 +31,13 @@ export default function IntakeModal({ close, submit }) {
   };
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !submitting && close()}>
     <form className="modal intake-modal card" onSubmit={handleSubmit}>
-      <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>Quick device check-in</h2><small>Check what applies — type only the essentials.</small></div><button type="button" onClick={close} disabled={submitting}>×</button></div>
+      <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>{customer ? `New intake for ${customer.name}` : 'Quick device check-in'}</h2><small>{customer ? 'This repair will be added to the existing customer profile.' : 'Check what applies — type only the essentials.'}</small></div><button type="button" onClick={close} disabled={submitting}>×</button></div>
       <div className="intake-scroll">
         <section className="intake-section"><h3>Customer / ደንበኛ</h3><div className="form-grid">
-          <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" required /></label>
-          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="0912345678 or +251912345678" autoComplete="tel" pattern="(?:09\d{8}|\+2519\d{8})" title="Use 09XXXXXXXX or +2519XXXXXXXX" required /></label>
-          <label>Credit Customer (new customer)<select name="isCreditCustomer" defaultValue="false"><option value="false">No</option><option value="true">Yes</option></select></label>
+          {customer && <div className="existing-customer-banner wide"><div><strong>Existing customer</strong><span>This intake will stay linked to {customer.name}&apos;s repair history.</span></div><span className={`credit-badge ${customer.isCreditCustomer ? 'enabled' : ''}`}>{customer.isCreditCustomer ? 'Credit customer' : 'Regular customer'}</span></div>}
+          <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" defaultValue={customer?.name || ''} readOnly={Boolean(customer)} required /></label>
+          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="0912345678 or +251912345678" autoComplete="tel" pattern="(?:09\d{8}|\+2519\d{8})" title="Use 09XXXXXXXX or +2519XXXXXXXX" defaultValue={customer?.phone || ''} readOnly={Boolean(customer)} required /></label>
+          {customer ? <><input type="hidden" name="customerId" value={customer.id} /><input type="hidden" name="isCreditCustomer" value={String(Boolean(customer.isCreditCustomer))} /></> : <label>Credit Customer (new customer)<select name="isCreditCustomer" defaultValue="false"><option value="false">No</option><option value="true">Yes</option></select></label>}
         </div></section>
         <section className="intake-section"><h3>Device / መሣሪያ</h3>
           <div className="device-type-row">{['Phone', 'Tablet', 'Laptop', 'Other'].map((type) => <label className="check-pill" key={type}><input type="radio" name="deviceType" value={type} defaultChecked={type === 'Phone'} /><span>{type}</span></label>)}</div>

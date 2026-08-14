@@ -26,6 +26,7 @@ export default function HomePage() {
   const [workspace, setWorkspace] = useState(null);
   const [search, setSearch] = useState('');
   const [showIntake, setShowIntake] = useState(false);
+  const [intakeCustomer, setIntakeCustomer] = useState(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
@@ -71,8 +72,13 @@ export default function HomePage() {
     if (repair) setSearch(repair.id);
     setActive('Repairs');
   };
-  const openIntake = () => { if (role !== 'Front Desk') return notify('Device intake is available to Front Desk only'); setShowIntake(true); setActive('New Intake'); };
-  const closeIntake = () => { setShowIntake(false); setActive('Overview'); };
+  const openIntake = (customer = null) => {
+    if (role !== 'Front Desk') return notify('Device intake is available to Front Desk only');
+    setIntakeCustomer(customer);
+    setShowIntake(true);
+    setActive('New Intake');
+  };
+  const closeIntake = () => { setShowIntake(false); setIntakeCustomer(null); setActive('Overview'); };
 
   const createIntake = async (event) => {
     event.preventDefault();
@@ -234,11 +240,11 @@ export default function HomePage() {
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
   const shared = { role, user, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], expenses: workspace?.expenses || [], sales: workspace?.sales || [], customers: workspace?.customers || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} totalRepairs={repairs.length} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} createCustomer={createCustomer} updateCustomer={updateCustomer} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} totalRepairs={repairs.length} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} createCustomer={createCustomer} updateCustomer={updateCustomer} startCustomerIntake={openIntake} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} mobileOpen={mobileNavOpen} closeMobileNav={() => setMobileNavOpen(false)} />
     <main className="main-area"><Topbar role={role} user={user} search={search} setSearch={setSearch} repairs={repairs} openRepairSearch={openRepairSearch} openMobileNav={() => setMobileNavOpen(true)} notificationCount={assignedNewRepairs.length} openNotifications={() => setActive('Repairs')}/><div className="content">{error && <div className="api-error"><span>!</span>{error}<button onClick={() => loadWorkspace()}>Retry</button></div>}{views[active] || views.Overview}</div></main>
-    {showIntake && <IntakeModal close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
+    {showIntake && <IntakeModal customer={intakeCustomer} close={closeIntake} submit={createIntake}/>} {toast && <div className="toast"><span>✓</span>{toast}</div>}
   </div>;
 }
