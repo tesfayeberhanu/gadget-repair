@@ -7,6 +7,8 @@ const host = process.env.HOST || '0.0.0.0';
 const allowedOrigins = new Set([
   'http://localhost:3002',
   'https://ifixlab-staff.vercel.app',
+  'https://ifixlab251.com',
+  'https://www.ifixlab251.com',
   ...(process.env.FRONTEND_ORIGIN || '')
     .split(',')
     .map((origin) => origin.trim().replace(/\/$/, ''))
