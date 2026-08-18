@@ -76,7 +76,8 @@ function serializePart(part, role) {
 function serializeSale(sale) {
   const financials = invoiceFinancials(sale);
   const displayPaymentStatus = sale.paymentStatus === 'REFUNDED' ? 'REFUNDED' : financials.paymentStatus;
-  return { id: `#SL-${sale.id.slice(0, 6).toUpperCase()}`, recordId: sale.id, customerId: sale.customerId, customer: sale.customer?.name || sale.ticket?.customerName || 'Retail customer', item: sale.ticket ? `${sale.ticket.deviceModel} repair` : 'Retail sale', method: sale.paymentMethod ? methodLabel[sale.paymentMethod] : 'No payment yet', amount: financials.invoiceTotal, invoiceTotal: financials.invoiceTotal, amountPaid: financials.amountPaid, balanceDue: financials.balanceDue, status: paymentLabel[displayPaymentStatus], invoiceStatus: sale.status, isCreditSale: Boolean(sale.isCreditSale), finalizedAt: sale.finalizedAt, createdAt: sale.createdAt };
+  const payments = (sale.payments || []).map((payment) => ({ id: payment.id, amount: Number(payment.amount), method: methodLabel[payment.method] || payment.method, createdAt: payment.createdAt, reversed: Boolean(payment.reversedAt), reversedAt: payment.reversedAt, reversalReason: payment.reversalReason }));
+  return { id: `#SL-${sale.id.slice(0, 6).toUpperCase()}`, recordId: sale.id, customerId: sale.customerId, customer: sale.customer?.name || sale.ticket?.customerName || 'Retail customer', item: sale.ticket ? `${sale.ticket.deviceModel} repair` : 'Retail sale', method: sale.paymentMethod ? methodLabel[sale.paymentMethod] : 'No payment yet', amount: financials.invoiceTotal, invoiceTotal: financials.invoiceTotal, amountPaid: financials.amountPaid, balanceDue: financials.balanceDue, status: paymentLabel[displayPaymentStatus], invoiceStatus: sale.status, isCreditSale: Boolean(sale.isCreditSale), finalizedAt: sale.finalizedAt, createdAt: sale.createdAt, payments };
 }
 
 function serializeCustomer(customer) {
