@@ -30,6 +30,7 @@ export default function HomePage() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [error, setError] = useState('');
+  const [focusCustomer, setFocusCustomer] = useState(null);
   const availableRepairIds = useRef(null);
 
   const notify = (message, duration = 2200) => { setToast(message); window.setTimeout(() => setToast(''), duration); };
@@ -74,6 +75,7 @@ export default function HomePage() {
   };
   const openCustomerSearch = (customer) => {
     setSearch('');
+    setFocusCustomer(customer || null);
     setActive('Customers');
   };
   const openAppointmentSearch = (appointment) => {
@@ -88,19 +90,32 @@ export default function HomePage() {
   };
   const closeIntake = () => { setShowIntake(false); setIntakeCustomer(null); setActive('Overview'); };
 
-  const createIntake = async (event) => {
+  const createIntake = async (event, deviceCount = 1) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget); const checks = data.getAll('checks'); const physical = data.getAll('physical'); const accessories = data.getAll('accessories'); const notes = String(data.get('issueNotes') || '').trim(); const form = Object.fromEntries(data);
-    form.device = [data.get('deviceType'), data.get('brand'), data.get('device'), data.get('color') && `(${data.get('color')})`].filter(Boolean).join(' ');
-    form.condition = physical.length ? physical.map((item) => item.replace('Physical: ', '')).join(', ') : 'Not recorded';
-    form.issue = [...checks, accessories.length ? `Accessories: ${accessories.join(', ')}` : '', notes].filter(Boolean).join(' · ') || 'General inspection requested';
+    const data = new FormData(event.currentTarget);
+    const shared = { customer: data.get('customer'), phone: data.get('phone'), customerId: data.get('customerId'), isCreditCustomer: data.get('isCreditCustomer') };
+    const tickets = [];
     try {
-      const ticket = await apiRequest('/api/repairs', token, { method: 'POST', body: JSON.stringify(form) });
-      sessionStorage.setItem('ifixlab_print_ticket', JSON.stringify({ ...ticket, createdAt: new Date().toISOString() }));
+      for (let index = 0; index < deviceCount; index++) {
+        const prefix = `dev${index}_`;
+        const checks = data.getAll(`${prefix}checks`); const physical = data.getAll(`${prefix}physical`); const accessories = data.getAll(`${prefix}accessories`); const notes = String(data.get(`${prefix}issueNotes`) || '').trim();
+        const form = { ...shared, ...(tickets[0] ? { customerId: tickets[0].customerId } : {}) };
+        form.device = [data.get(`${prefix}deviceType`), data.get(`${prefix}brand`), data.get(`${prefix}device`), data.get(`${prefix}color`) && `(${data.get(`${prefix}color`)})`].filter(Boolean).join(' ');
+        form.condition = physical.length ? physical.map((item) => item.replace('Physical: ', '')).join(', ') : 'Not recorded';
+        form.issue = [...checks, accessories.length ? `Accessories: ${accessories.join(', ')}` : '', notes].filter(Boolean).join(' · ') || 'General inspection requested';
+        form.imei = data.get(`${prefix}imei`);
+        form.estimate = data.get(`${prefix}estimate`);
+        const ticket = await apiRequest('/api/repairs', token, { method: 'POST', body: JSON.stringify(form) });
+        tickets.push(ticket);
+      }
+      sessionStorage.setItem('ifixlab_print_ticket', JSON.stringify({ tickets: tickets.map((ticket) => ({ ...ticket, createdAt: new Date().toISOString() })) }));
       window.location.assign('/print-ticket');
       return true;
     }
-    catch (requestError) { setError(requestError.message); return false; }
+    catch (requestError) {
+      setError(tickets.length ? `Device ${tickets.length + 1}: ${requestError.message}. ${tickets.length} ticket${tickets.length === 1 ? '' : 's'} already created for this customer — check the Repairs queue.` : requestError.message);
+      return false;
+    }
   };
 
   const updateStatus = async (id) => {
@@ -248,7 +263,7 @@ export default function HomePage() {
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
   const shared = { role, user, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], expenses: workspace?.expenses || [], sales: workspace?.sales || [], customers: workspace?.customers || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} totalRepairs={repairs.length} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} createCustomer={createCustomer} updateCustomer={updateCustomer} startCustomerIntake={openIntake} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} totalRepairs={repairs.length} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} createCustomer={createCustomer} updateCustomer={updateCustomer} startCustomerIntake={openIntake} focusCustomer={focusCustomer} clearFocusCustomer={() => setFocusCustomer(null)} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} mobileOpen={mobileNavOpen} closeMobileNav={() => setMobileNavOpen(false)} />

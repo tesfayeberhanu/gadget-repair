@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Metric, money, PageHead, ResultCount, RevenueCard, SearchBox, Status } from './SharedUI';
 import { compareText, matchesSearch, stableSort } from '../utils/listTools.mjs';
 
@@ -178,7 +178,7 @@ export function SalesView({ sales, dashboard = {}, recordPayment }) {
   </>;
 }
 
-export function CustomersView({ role, customers, createCustomer, updateCustomer, startCustomerIntake }) {
+export function CustomersView({ role, customers, createCustomer, updateCustomer, startCustomerIntake, focusCustomer, clearFocusCustomer }) {
   const [customerSort, setCustomerSort] = useState('name');
   const [customerSearch, setCustomerSearch] = useState('');
   const [customerTypeFilter, setCustomerTypeFilter] = useState('All');
@@ -186,6 +186,14 @@ export function CustomersView({ role, customers, createCustomer, updateCustomer,
   const [detailCustomer, setDetailCustomer] = useState(null);
   const [saving, setSaving] = useState(false);
   const canManage = ['Admin', 'Front Desk'].includes(role);
+  useEffect(() => {
+    if (!focusCustomer) return;
+    const current = customers.find((customer) => customer.id === focusCustomer.id) || focusCustomer;
+    setCustomerTypeFilter('All');
+    setCustomerSearch('');
+    setDetailCustomer(current);
+    clearFocusCustomer?.();
+  }, [focusCustomer]);
   const canStartIntake = role === 'Front Desk' && typeof startCustomerIntake === 'function';
   const visibleCustomers = stableSort(
     customers.filter((customer) => {

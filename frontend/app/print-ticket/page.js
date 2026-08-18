@@ -31,19 +31,22 @@ function TicketBarcode({ value }) {
 }
 
 export default function PrintTicketPage() {
-  const [ticket, setTicket] = useState(undefined);
+  const [tickets, setTickets] = useState(undefined);
 
   useEffect(() => {
     const stored = sessionStorage.getItem('ifixlab_print_ticket');
-    try { setTicket(stored ? JSON.parse(stored) : null); } catch { setTicket(null); }
+    try {
+      const parsed = stored ? JSON.parse(stored) : null;
+      setTickets(Array.isArray(parsed?.tickets) ? parsed.tickets : parsed ? [parsed] : null);
+    } catch { setTickets(null); }
   }, []);
 
-  if (ticket === undefined) return <main className="receipt-loading">Preparing receipt…</main>;
-  if (!ticket) return <main className="receipt-missing"><h1>No ticket ready to print</h1><p>Create a new intake from the Front Desk workspace first.</p><Link href="/">Back to Front Desk</Link></main>;
+  if (tickets === undefined) return <main className="receipt-loading">Preparing receipt…</main>;
+  if (!tickets || !tickets.length) return <main className="receipt-missing"><h1>No ticket ready to print</h1><p>Create a new intake from the Front Desk workspace first.</p><Link href="/">Back to Front Desk</Link></main>;
 
   return <main className="receipt-page">
-    <div className="receipt-toolbar"><Link href="/">← Back to Front Desk</Link><button onClick={() => window.print()}>Print ticket</button></div>
-    <article className="repair-receipt">
+    <div className="receipt-toolbar"><Link href="/">← Back to Front Desk</Link><button onClick={() => window.print()}>{tickets.length > 1 ? `Print ${tickets.length} tickets` : 'Print ticket'}</button></div>
+    {tickets.map((ticket) => <article className="repair-receipt" key={ticket.id}>
       <header><img src="/ifixlab251-logo.png" alt="iFixLab251"/><div><h1>iFixLab251</h1><p>REPAIR INTAKE / የጥገና መቀበያ</p></div></header>
       <section className="receipt-ticket-head"><div><small>JOB NUMBER / የስራ ቁጥር</small><strong>{ticket.id}</strong></div><div><small>DATE / ቀን</small><strong>{new Date(ticket.createdAt).toLocaleString()}</strong></div></section>
       <TicketBarcode value={ticket.id}/><b className="barcode-label">{ticket.id}</b>
@@ -55,6 +58,6 @@ export default function PrintTicketPage() {
         <div className="wide"><small>PHYSICAL CONDITION / አካላዊ ሁኔታ</small><p>{ticket.condition || 'Not recorded'}</p></div>
       </section>
       <footer><p>Keep this receipt and use ticket <strong>{ticket.id}</strong> with your phone number to track the repair.</p><div><span>Customer signature / የደንበኛ ፊርማ</span><span>Front Desk</span></div></footer>
-    </article>
+    </article>)}
   </main>;
 }

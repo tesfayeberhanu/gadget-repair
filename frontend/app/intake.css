@@ -20,10 +20,16 @@
 .intake-check-group legend { padding: 0 4px; font-size: 10px; font-weight: 700; color: var(--ink); }
 .intake-check-group legend span { color: var(--muted); font-weight: 500; }
 .intake-modal .modal-actions { margin-top: 10px; flex: 0 0 auto; }
+.intake-device-block { border-top: 2px solid #e3ebf2; margin-top: 6px; }
+.intake-device-block-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 11px; }
+.intake-device-block-head h3 { margin: 0; }
+.remove-device { border: 0; background: #fff0f0; color: #c43b3b; font-size: 10px; font-weight: 700; border-radius: 6px; padding: 6px 10px; }
+.add-device { width: 100%; margin: 14px 0 4px; justify-content: center; }
 
 @media (max-width: 760px) {
   .condition-grid { grid-template-columns: 1fr; }
   .intake-modal { padding: 17px; }
   .intake-scroll { padding-right: 2px; }
   .existing-customer-banner { align-items: flex-start; flex-direction: column; }
+  .intake-device-block-head { flex-direction: column; align-items: flex-start; gap: 6px; }
 }

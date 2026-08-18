@@ -19,19 +19,52 @@ const CheckGroup = ({ title, amharic, name, options }) => <fieldset className="i
   <div className="check-grid">{options.map((option) => <label key={option} className="check-pill"><input type="checkbox" name={name} value={`${title}: ${option}`} /><span>{option}</span></label>)}</div>
 </fieldset>;
 
+let deviceKeySeed = 0;
+const newDevice = () => ({ key: `device-${++deviceKeySeed}`, brand: 'Apple' });
+
+function DeviceBlock({ device, index, total, onBrandChange, onRemove }) {
+  const prefix = `dev${index}_`;
+  return <section className="intake-section intake-device-block">
+    <div className="intake-device-block-head"><h3>Device {index + 1} of {total} / መሣሪያ {index + 1}</h3>{total > 1 && <button type="button" className="remove-device" onClick={onRemove}>✕ Remove this device</button>}</div>
+    <div className="device-type-row">{['Phone', 'Tablet', 'Laptop', 'Other'].map((type) => <label className="check-pill" key={type}><input type="radio" name={`${prefix}deviceType`} value={type} defaultChecked={type === 'Phone'} /><span>{type}</span></label>)}</div>
+    <div className="form-grid compact-fields">
+      <label>Brand / ብራንድ<select name={`${prefix}brand`} value={device.brand} onChange={(event) => onBrandChange(event.target.value)}>{Object.keys(brandModels).map((item) => <option key={item}>{item}</option>)}</select></label>
+      <label>Model / ሞዴል<select name={`${prefix}device`} key={device.brand} required>{brandModels[device.brand].map((model) => <option key={model}>{model}</option>)}</select></label>
+      <label>IMEI / Serial<input name={`${prefix}imei`} placeholder="Scan or type" required /></label>
+      <label>Color / ቀለም<input name={`${prefix}color`} placeholder="Color" /></label>
+      <label>Estimated Maintenance Charge (ETB)<input name={`${prefix}estimate`} type="number" min="0" step="0.01" placeholder="0.00" required /></label>
+    </div>
+    <fieldset className="intake-check-group"><legend>Accessories <span>/ ተጨማሪ እቃዎች</span></legend><div className="check-grid">{['SIM', 'Memory card', 'Tray', 'Charger', 'Case'].map((item) => <label className="check-pill" key={item}><input type="checkbox" name={`${prefix}accessories`} value={item} /><span>{item}</span></label>)}</div></fieldset>
+    <div className="condition-grid">
+      <CheckGroup title="Power" amharic="ኃይል" name={`${prefix}checks`} options={['On', 'Dead', 'Bootloop', 'Overheating']} />
+      <CheckGroup title="Screen" amharic="ስክሪን" name={`${prefix}checks`} options={['OK', 'Cracked', 'No display', 'Touch issue']} />
+      <CheckGroup title="Battery" amharic="ባትሪ" name={`${prefix}checks`} options={['OK', 'Not charging', 'Fast drain', 'Loose port']} />
+      <CheckGroup title="Network" amharic="ኔትወርክ" name={`${prefix}checks`} options={['OK', 'No signal', 'No SIM', 'Wi-Fi fault']} />
+      <CheckGroup title="Camera & audio" amharic="ካሜራ & ድምፅ" name={`${prefix}checks`} options={['Camera fault', 'No sound', 'Mic issue']} />
+      <CheckGroup title="Buttons" amharic="ቁልፎች" name={`${prefix}checks`} options={['Power', 'Volume', 'Fingerprint', 'Face ID']} />
+      <CheckGroup title="Physical" amharic="አካላዊ" name={`${prefix}physical`} options={['Clean', 'Scratched', 'Bent', 'Water damage']} />
+      <CheckGroup title="Software" amharic="ሶፍትዌር" name={`${prefix}checks`} options={['Locked', 'Slow', 'Crashing', 'Needs update']} />
+    </div>
+    <div className="form-grid"><label className="wide">Issue or notes / ችግር ወይም ማስታወሻ<textarea name={`${prefix}issueNotes`} placeholder="Optional — add only what the checkboxes do not cover" /></label></div>
+  </section>;
+}
+
 export default function IntakeModal({ customer = null, close, submit }) {
-  const [brand, setBrand] = useState('Apple');
+  const [devices, setDevices] = useState([newDevice()]);
   const [submitting, setSubmitting] = useState(false);
+  const setDeviceBrand = (index, brand) => setDevices((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, brand } : row));
+  const addDevice = () => setDevices((rows) => [...rows, newDevice()]);
+  const removeDevice = (index) => setDevices((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (submitting) return;
     setSubmitting(true);
-    const succeeded = await submit(event);
+    const succeeded = await submit(event, devices.length);
     if (!succeeded) setSubmitting(false);
   };
   return <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !submitting && close()}>
     <form className="modal intake-modal card" onSubmit={handleSubmit}>
-      <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>{customer ? `New intake for ${customer.name}` : 'Quick device check-in'}</h2><small>{customer ? 'This repair will be added to the existing customer profile.' : 'Check what applies — type only the essentials.'}</small></div><button type="button" onClick={close} disabled={submitting}>×</button></div>
+      <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>{customer ? `New intake for ${customer.name}` : 'Quick device check-in'}</h2><small>{customer ? 'This repair will be added to the existing customer profile.' : 'Check what applies — type only the essentials.'}{devices.length > 1 ? ` Registering ${devices.length} devices for one customer.` : ''}</small></div><button type="button" onClick={close} disabled={submitting}>×</button></div>
       <div className="intake-scroll">
         <section className="intake-section"><h3>Customer / ደንበኛ</h3><div className="form-grid">
           {customer && <div className="existing-customer-banner wide"><div><strong>Existing customer</strong><span>This intake will stay linked to {customer.name}&apos;s repair history.</span></div><span className={`credit-badge ${customer.isCreditCustomer ? 'enabled' : ''}`}>{customer.isCreditCustomer ? 'Credit customer' : 'Regular customer'}</span></div>}
@@ -39,30 +72,10 @@ export default function IntakeModal({ customer = null, close, submit }) {
           <label>Phone / ስልክ<input name="phone" type="tel" placeholder="0912345678 or +251912345678" autoComplete="tel" pattern="(?:09\d{8}|\+2519\d{8})" title="Use 09XXXXXXXX or +2519XXXXXXXX" defaultValue={customer?.phone || ''} readOnly={Boolean(customer)} required /></label>
           {customer ? <><input type="hidden" name="customerId" value={customer.id} /><input type="hidden" name="isCreditCustomer" value={String(Boolean(customer.isCreditCustomer))} /></> : <label>Credit Customer (new customer)<select name="isCreditCustomer" defaultValue="false"><option value="false">No</option><option value="true">Yes</option></select></label>}
         </div></section>
-        <section className="intake-section"><h3>Device / መሣሪያ</h3>
-          <div className="device-type-row">{['Phone', 'Tablet', 'Laptop', 'Other'].map((type) => <label className="check-pill" key={type}><input type="radio" name="deviceType" value={type} defaultChecked={type === 'Phone'} /><span>{type}</span></label>)}</div>
-          <div className="form-grid compact-fields">
-            <label>Brand / ብራንድ<select name="brand" value={brand} onChange={(event) => setBrand(event.target.value)}>{Object.keys(brandModels).map((item) => <option key={item}>{item}</option>)}</select></label>
-            <label>Model / ሞዴል<select name="device" key={brand} required>{brandModels[brand].map((model) => <option key={model}>{model}</option>)}</select></label>
-            <label>IMEI / Serial<input name="imei" placeholder="Scan or type" required /></label>
-            <label>Color / ቀለም<input name="color" placeholder="Color" /></label>
-            <label>Estimated Maintenance Charge (ETB)<input name="estimate" type="number" min="0" step="0.01" placeholder="0.00" required /></label>
-          </div>
-        </section>
-        <section className="intake-section"><h3>Accessories / ተጨማሪ እቃዎች</h3><div className="check-grid">{['SIM', 'Memory card', 'Tray', 'Charger', 'Case'].map((item) => <label className="check-pill" key={item}><input type="checkbox" name="accessories" value={item} /><span>{item}</span></label>)}</div></section>
-        <section className="intake-section"><h3>Condition / የመሣሪያ ሁኔታ</h3><div className="condition-grid">
-          <CheckGroup title="Power" amharic="ኃይል" name="checks" options={['On', 'Dead', 'Bootloop', 'Overheating']} />
-          <CheckGroup title="Screen" amharic="ስክሪን" name="checks" options={['OK', 'Cracked', 'No display', 'Touch issue']} />
-          <CheckGroup title="Battery" amharic="ባትሪ" name="checks" options={['OK', 'Not charging', 'Fast drain', 'Loose port']} />
-          <CheckGroup title="Network" amharic="ኔትወርክ" name="checks" options={['OK', 'No signal', 'No SIM', 'Wi-Fi fault']} />
-          <CheckGroup title="Camera & audio" amharic="ካሜራ & ድምፅ" name="checks" options={['Camera fault', 'No sound', 'Mic issue']} />
-          <CheckGroup title="Buttons" amharic="ቁልፎች" name="checks" options={['Power', 'Volume', 'Fingerprint', 'Face ID']} />
-          <CheckGroup title="Physical" amharic="አካላዊ" name="physical" options={['Clean', 'Scratched', 'Bent', 'Water damage']} />
-          <CheckGroup title="Software" amharic="ሶፍትዌር" name="checks" options={['Locked', 'Slow', 'Crashing', 'Needs update']} />
-        </div></section>
-        <section className="intake-section"><div className="form-grid"><label className="wide">Issue or notes / ችግር ወይም ማስታወሻ<textarea name="issueNotes" placeholder="Optional — add only what the checkboxes do not cover" /></label></div></section>
+        {devices.map((device, index) => <DeviceBlock key={device.key} device={device} index={index} total={devices.length} onBrandChange={(brand) => setDeviceBrand(index, brand)} onRemove={() => removeDevice(index)} />)}
+        <button type="button" className="outline add-part add-device" onClick={addDevice}>＋ Add another device (customer brought in more than one phone)</button>
       </div>
-      <div className="modal-actions"><button type="button" className="outline" onClick={close} disabled={submitting}>Cancel</button><button className="primary" type="submit" disabled={submitting}>{submitting ? 'Creating ticket…' : 'Create ticket & receipt'}</button></div>
+      <div className="modal-actions"><button type="button" className="outline" onClick={close} disabled={submitting}>Cancel</button><button className="primary" type="submit" disabled={submitting}>{submitting ? 'Creating ticket…' : devices.length > 1 ? `Create ${devices.length} tickets & receipts` : 'Create ticket & receipt'}</button></div>
     </form>
   </div>;
 }
