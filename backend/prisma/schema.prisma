@@ -309,6 +309,20 @@ model StaffProfile {
   @@index([active, position])
 }
 
+model BlogPost {
+  id        String   @id @default(uuid())
+  tag       String
+  title     String
+  summary   String
+  body      String
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, position])
+}
+
 model DeliveryRecord {
   id            String        @id @default(uuid())
   ticketId      String        @unique

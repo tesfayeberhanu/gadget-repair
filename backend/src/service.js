@@ -126,6 +126,85 @@ function serializeStaffProfile(profile) {
   return { id: profile.id, name: profile.name, role: profile.role, bio: profile.bio || '', active: profile.active, position: profile.position, photoUrl: profile.photoType ? `/api/public/staff-profiles/${profile.id}/photo` : null };
 }
 
+function serializeBlogPost(post) {
+  return { id: post.id, tag: post.tag, title: post.title, summary: post.summary, body: post.body, active: post.active, position: post.position };
+}
+
+export async function listBlogPosts(role) {
+  requireRole(role, ['Admin']);
+  const posts = await prisma.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
+  return posts.map(serializeBlogPost);
+}
+
+function blogPostInput(input) {
+  const tag = String(input.tag || '').trim();
+  const title = String(input.title || '').trim();
+  const summary = String(input.summary || '').trim();
+  const body = String(input.body || '').trim();
+  if (!tag || !title || !summary || !body) throw new Error('INVALID_BLOG_POST');
+  return { tag, title, summary, body };
+}
+
+export async function createBlogPost(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const data = blogPostInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const maxPosition = await tx.blogPost.aggregate({ _max: { position: true } });
+    const post = await tx.blogPost.create({ data: { ...data, position: (maxPosition._max.position ?? -1) + 1 } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'blog_post.created', entity: 'BlogPost', entityId: post.id } });
+    return serializeBlogPost(post);
+  });
+}
+
+export async function updateBlogPost(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  if (!input.id) throw new Error('NOT_FOUND');
+  const data = blogPostInput(input);
+  const active = input.active === undefined ? undefined : Boolean(input.active === true || input.active === 'true');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.blogPost.findUnique({ where: { id: input.id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const post = await tx.blogPost.update({ where: { id: input.id }, data: { ...data, ...(active !== undefined ? { active } : {}) } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'blog_post.updated', entity: 'BlogPost', entityId: post.id } });
+    return serializeBlogPost(post);
+  });
+}
+
+export async function deleteBlogPost(role, actorId, id) {
+  requireRole(role, ['Admin']);
+  if (!id) throw new Error('NOT_FOUND');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.blogPost.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    await tx.blogPost.delete({ where: { id } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'blog_post.deleted', entity: 'BlogPost', entityId: id } });
+    return { success: true };
+  });
+}
+
+export async function reorderBlogPost(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  if (!input.id || !['up', 'down'].includes(input.direction)) throw new Error('INVALID_REORDER');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const posts = await tx.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
+    const index = posts.findIndex((post) => post.id === input.id);
+    if (index < 0) throw new Error('NOT_FOUND');
+    const swapIndex = input.direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex >= 0 && swapIndex < posts.length) {
+      const a = posts[index]; const b = posts[swapIndex];
+      await tx.blogPost.update({ where: { id: a.id }, data: { position: b.position } });
+      await tx.blogPost.update({ where: { id: b.id }, data: { position: a.position } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: 'blog_post.reordered', entity: 'BlogPost', entityId: a.id } });
+    }
+    const updated = await tx.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
+    return updated.map(serializeBlogPost);
+  });
+}
+
 export async function listBanners(role) {
   requireRole(role, ['Admin', 'Front Desk']);
   const banners = await prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } });
@@ -317,15 +396,17 @@ export async function getStaffPhoto(id) {
 }
 
 export async function getPublicSiteContent() {
-  const [banners, socialLinks, staffProfiles] = await Promise.all([
+  const [banners, socialLinks, staffProfiles, blogPosts] = await Promise.all([
     prisma.promoBanner.findMany({ where: { active: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }),
     prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }),
     prisma.staffProfile.findMany({ where: { active: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }),
+    prisma.blogPost.findMany({ where: { active: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }),
   ]);
   return {
     banners: banners.map(serializeBanner),
     socialLinks: socialLinks.map(serializeSocialLink),
     staffProfiles: staffProfiles.map(serializeStaffProfile),
+    blogPosts: blogPosts.map(serializeBlogPost),
   };
 }
 
@@ -401,7 +482,7 @@ export async function getWorkspace(role, actorId) {
     const item = permissionNavigation[permission];
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
-  const [tickets, parts, sales, customers, team, appointments, technicians, inventoryMovements, expenses, banners, socialLinks, staffProfiles] = await Promise.all([
+  const [tickets, parts, sales, customers, team, appointments, technicians, inventoryMovements, expenses, banners, socialLinks, staffProfiles, blogPosts] = await Promise.all([
     prisma.repairTicket.findMany({ include: repairInclude, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' && !actor.permissions.includes('MANAGE_POS') && !actor.permissions.includes('VIEW_REPORTS') ? [] : prisma.sale.findMany({ include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } }),
@@ -420,6 +501,7 @@ export async function getWorkspace(role, actorId) {
     role === 'Admin' || role === 'Front Desk' ? prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }) : [],
     role === 'Admin' ? prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
     role === 'Admin' ? prisma.staffProfile.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }) : [],
+    role === 'Admin' ? prisma.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
   ]);
 
   const visibleTickets = role === 'Technician'
@@ -487,6 +569,7 @@ export async function getWorkspace(role, actorId) {
     banners: banners.map(serializeBanner),
     socialLinks: socialLinks.map(serializeSocialLink),
     staffProfiles: staffProfiles.map(serializeStaffProfile),
+    blogPosts: blogPosts.map(serializeBlogPost),
   };
 }
 
