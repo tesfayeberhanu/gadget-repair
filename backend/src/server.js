@@ -6,6 +6,7 @@ const port = Number(process.env.PORT || process.env.BACKEND_PORT || 4000);
 const host = process.env.HOST || '0.0.0.0';
 const allowedOrigins = new Set([
   'http://localhost:3002',
+  'http://127.0.0.1:3002',
   'https://ifixlab-staff.vercel.app',
   'https://ifixlab251.com',
   'https://www.ifixlab251.com',
