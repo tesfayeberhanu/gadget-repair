@@ -7,7 +7,7 @@ import Overview from './components/Overview';
 import IntakeModal from './components/IntakeModal';
 import LoginScreen from './components/LoginScreen';
 import SettingsView from './components/SettingsView';
-import { AppointmentsView, RepairsView, InventoryView, ExpensesView, SalesView, CustomersView, ReportsView, TeamView } from './components/ModuleViews';
+import { AppointmentsView, RepairsView, InventoryView, ExpensesView, SalesView, CustomersView, ReportsView, TeamView, WebsiteView } from './components/ModuleViews';
 import { matchesSearch } from './utils/listTools.mjs';
 
 async function apiRequest(path, token, options = {}) {
@@ -188,6 +188,50 @@ export default function HomePage() {
     } catch (requestError) { setError(requestError.message); }
   };
 
+  const createBanner = async (form) => {
+    try { await apiRequest('/api/banners', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Banner added'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const updateBanner = async (form) => {
+    try { await apiRequest('/api/banners', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify('Banner updated'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const deleteBanner = async (id, title) => {
+    if (!window.confirm(`Delete banner "${title}"? This cannot be undone.`)) return;
+    try { await apiRequest('/api/banners', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Banner deleted'); }
+    catch (requestError) { setError(requestError.message); }
+  };
+  const reorderBanner = async (form) => {
+    try { await apiRequest('/api/banners/reorder', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); }
+    catch (requestError) { setError(requestError.message); }
+  };
+  const createSocialLink = async (form) => {
+    try { await apiRequest('/api/social-links', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Social link added'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const updateSocialLink = async (form) => {
+    try { await apiRequest('/api/social-links', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify('Social link updated'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const deleteSocialLink = async (id, platform) => {
+    if (!window.confirm(`Delete the ${platform} link?`)) return;
+    try { await apiRequest('/api/social-links', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Social link deleted'); }
+    catch (requestError) { setError(requestError.message); }
+  };
+  const createStaffProfile = async (form) => {
+    try { await apiRequest('/api/staff-profiles', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Team member added'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const updateStaffProfile = async (form) => {
+    try { await apiRequest('/api/staff-profiles', token, { method: 'PATCH', body: JSON.stringify(form) }); await loadWorkspace(); notify('Team member updated'); return true; }
+    catch (requestError) { setError(requestError.message); return false; }
+  };
+  const deleteStaffProfile = async (id, name) => {
+    if (!window.confirm(`Remove ${name} from the team showcase?`)) return;
+    try { await apiRequest('/api/staff-profiles', token, { method: 'DELETE', body: JSON.stringify({ id }) }); await loadWorkspace(); notify('Team member removed'); }
+    catch (requestError) { setError(requestError.message); }
+  };
+
   const createCustomer = async (form) => {
     try { await apiRequest('/api/customers', token, { method: 'POST', body: JSON.stringify(form) }); await loadWorkspace(); notify('Customer created'); return true; }
     catch (requestError) { setError(requestError.message); return false; }
@@ -262,8 +306,8 @@ export default function HomePage() {
   if (token === undefined || (token && !workspace && !error)) return <div className="loading-screen"><span className="loader"></span><p>Loading iFixLab251 workspace…</p></div>;
   if (!token) return <LoginScreen login={login} forgotPassword={forgotPassword} error={error} />;
 
-  const shared = { role, user, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], expenses: workspace?.expenses || [], sales: workspace?.sales || [], customers: workspace?.customers || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], setActive, openIntake };
-  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} totalRepairs={repairs.length} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} repairs={repairs} createCustomer={createCustomer} updateCustomer={updateCustomer} startCustomerIntake={openIntake} focusCustomer={focusCustomer} clearFocusCustomer={() => setFocusCustomer(null)} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
+  const shared = { role, user, repairs, dashboard: workspace?.dashboard || {}, inventory: workspace?.inventory || [], expenses: workspace?.expenses || [], sales: workspace?.sales || [], customers: workspace?.customers || [], team: workspace?.team || [], technicians: workspace?.technicians || [], appointments: workspace?.appointments || [], banners: workspace?.banners || [], socialLinks: workspace?.socialLinks || [], staffProfiles: workspace?.staffProfiles || [], setActive, openIntake };
+  const views = { Overview: <Overview {...shared} />, Appointments: <AppointmentsView appointments={shared.appointments} reviewAppointment={reviewAppointment} />, Repairs: <RepairsView repairs={filteredRepairs} totalRepairs={repairs.length} inventory={shared.inventory} technicians={shared.technicians} search={search} setSearch={setSearch} role={role} updateStatus={updateStatus} assignRepair={assignRepair} saveRepairProgress={saveRepairProgress} confirmDelivery={confirmDelivery} />, Inventory: <InventoryView role={role} parts={shared.inventory} dashboard={shared.dashboard} createInventoryItem={createInventoryItem} updateInventoryItem={updateInventoryItem} deleteInventoryItem={deleteInventoryItem} />, Expense: <ExpensesView expenses={shared.expenses} dashboard={shared.dashboard} createExpense={createExpense} updateExpense={updateExpense} deleteExpense={deleteExpense} />, 'Point of Sale': <SalesView sales={shared.sales} dashboard={shared.dashboard} recordPayment={recordPayment} />, Customers: <CustomersView role={role} customers={shared.customers} repairs={repairs} createCustomer={createCustomer} updateCustomer={updateCustomer} startCustomerIntake={openIntake} focusCustomer={focusCustomer} clearFocusCustomer={() => setFocusCustomer(null)} />, Reports: <ReportsView dashboard={shared.dashboard} />, Team: <TeamView team={shared.team} createStaff={createStaff} updateStaff={updateStaff} deactivateStaff={deactivateStaff} />, Website: <WebsiteView role={role} banners={shared.banners} socialLinks={shared.socialLinks} staffProfiles={shared.staffProfiles} createBanner={createBanner} updateBanner={updateBanner} deleteBanner={deleteBanner} reorderBanner={reorderBanner} createSocialLink={createSocialLink} updateSocialLink={updateSocialLink} deleteSocialLink={deleteSocialLink} createStaffProfile={createStaffProfile} updateStaffProfile={updateStaffProfile} deleteStaffProfile={deleteStaffProfile} />, Settings: <SettingsView user={user} updateProfile={updateProfile} changePassword={changePassword} emailPasswordReset={emailPasswordReset}/> };
 
   return <div className="app-shell">
     <AppSidebar role={role} user={user} active={active} navigation={workspace?.navigation || []} repairs={repairs} setActive={setActive} openIntake={openIntake} logout={logout} mobileOpen={mobileNavOpen} closeMobileNav={() => setMobileNavOpen(false)} />

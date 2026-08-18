@@ -1,4 +1,12 @@
+import { periodOptions } from '../utils/listTools.mjs';
+
 export const money = (value) => `ETB ${Number(value || 0).toLocaleString('en-ET')}`;
+export function DateRangeFilter({ period, setPeriod, from, setFrom, to, setTo, label = 'Filter by date' }) {
+  return <div className="date-range-filter" role="group" aria-label={label}>
+    <div className="period-pills">{periodOptions.map(([value, optionLabel]) => <button type="button" key={value} className={period === value ? 'active' : ''} onClick={() => { setPeriod(value); setFrom(''); setTo(''); }}>{optionLabel}</button>)}</div>
+    <div className="period-range"><label>From<input type="date" value={from} onChange={(event) => { setFrom(event.target.value); setPeriod('custom'); }} /></label><label>To<input type="date" value={to} onChange={(event) => { setTo(event.target.value); setPeriod('custom'); }} /></label></div>
+  </div>;
+}
 export function PageHead({ eyebrow, title, children }) { return <div className="page-head"><div><p>{eyebrow}</p><h1>{title}</h1></div>{children}</div>; }
 export function Metric({ icon, tone, label, value, meta }) { return <article className="metric card"><div className={`metric-icon ${tone}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></article>; }
 export function Status({ value }) { return <span className={`status ${value.toLowerCase().replaceAll(' ', '-')}`}><i></i>{value}</span>; }

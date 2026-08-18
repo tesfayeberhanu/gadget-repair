@@ -44,3 +44,20 @@ export function stableSort(items, compare, tieBreaker = (item) => item?.id || it
     .sort((left, right) => compare(left.item, right.item) || compareText(tieBreaker(left.item), tieBreaker(right.item)) || left.index - right.index)
     .map(({ item }) => item);
 }
+
+export const periodOptions = [['all', 'All time'], ['today', 'Today'], ['yesterday', 'Yesterday'], ['week', 'This week'], ['month', 'This month']];
+
+export function periodBounds(period, from, to) {
+  const now = new Date();
+  const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  if (period === 'today') { const start = startOfDay(now); return [start, new Date(start.getTime() + 86400000)]; }
+  if (period === 'yesterday') { const end = startOfDay(now); return [new Date(end.getTime() - 86400000), end]; }
+  if (period === 'week') { const start = startOfDay(new Date(now.getTime() - ((now.getDay() + 6) % 7) * 86400000)); return [start, new Date(start.getTime() + 7 * 86400000)]; }
+  if (period === 'month') return [new Date(now.getFullYear(), now.getMonth(), 1), new Date(now.getFullYear(), now.getMonth() + 1, 1)];
+  if (period === 'custom' && (from || to)) return [from ? new Date(`${from}T00:00:00`) : new Date(0), to ? new Date(new Date(`${to}T00:00:00`).getTime() + 86400000) : new Date(8640000000000000)];
+  return null;
+}
+
+export function withinPeriod(dateValue, bounds) {
+  return !bounds || (new Date(dateValue) >= bounds[0] && new Date(dateValue) < bounds[1]);
+}

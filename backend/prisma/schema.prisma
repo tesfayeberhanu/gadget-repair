@@ -268,6 +268,47 @@ model Appointment {
   @@index([customerPhone])
 }
 
+model PromoBanner {
+  id        String   @id @default(uuid())
+  title     String?
+  subtitle  String?
+  linkUrl   String?
+  imageData Bytes
+  imageType String
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, position])
+}
+
+model SocialLink {
+  id        String   @id @default(uuid())
+  platform  String
+  url       String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([position])
+}
+
+model StaffProfile {
+  id        String   @id @default(uuid())
+  name      String
+  role      String
+  bio       String?
+  photoData Bytes?
+  photoType String?
+  position  Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, position])
+}
+
 model DeliveryRecord {
   id            String        @id @default(uuid())
   ticketId      String        @unique

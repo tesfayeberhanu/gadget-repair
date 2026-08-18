@@ -4,9 +4,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials } from './accounting.js';
 
 const navigation = {
-  Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Settings'],
+  Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website', 'Settings'],
   Technician: ['Overview', 'Repairs', 'Inventory'],
-  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers'],
+  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers', 'Website'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
@@ -100,6 +100,235 @@ function serializeExpense(expense) {
   return { id: expense.id, description: expense.description, category: expense.category, amount: Number(expense.amount), expenseDate: expense.expenseDate, notes: expense.notes || '', recordedBy: expense.recordedBy?.name || 'Admin', createdAt: expense.createdAt, updatedAt: expense.updatedAt };
 }
 
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
+const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+const socialPlatforms = ['Facebook', 'Instagram', 'TikTok', 'Telegram', 'YouTube', 'X', 'LinkedIn', 'WhatsApp'];
+
+function decodeImageDataUrl(dataUrl) {
+  const match = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/.exec(String(dataUrl || ''));
+  if (!match) throw new Error('INVALID_IMAGE');
+  const [, mimeType, base64] = match;
+  if (!allowedImageTypes.has(mimeType)) throw new Error('INVALID_IMAGE');
+  const buffer = Buffer.from(base64, 'base64');
+  if (buffer.length === 0 || buffer.length > MAX_IMAGE_BYTES) throw new Error('INVALID_IMAGE');
+  return { buffer, mimeType };
+}
+
+function serializeBanner(banner) {
+  return { id: banner.id, title: banner.title || '', subtitle: banner.subtitle || '', linkUrl: banner.linkUrl || '', active: banner.active, position: banner.position, imageUrl: `/api/public/banners/${banner.id}/image`, updatedAt: banner.updatedAt };
+}
+
+function serializeSocialLink(link) {
+  return { id: link.id, platform: link.platform, url: link.url, position: link.position };
+}
+
+function serializeStaffProfile(profile) {
+  return { id: profile.id, name: profile.name, role: profile.role, bio: profile.bio || '', active: profile.active, position: profile.position, photoUrl: profile.photoType ? `/api/public/staff-profiles/${profile.id}/photo` : null };
+}
+
+export async function listBanners(role) {
+  requireRole(role, ['Admin', 'Front Desk']);
+  const banners = await prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } });
+  return banners.map(serializeBanner);
+}
+
+export async function createBanner(role, actorId, input) {
+  requireRole(role, ['Admin', 'Front Desk']);
+  const { buffer, mimeType } = decodeImageDataUrl(input.image);
+  const title = String(input.title || '').trim() || null;
+  const subtitle = String(input.subtitle || '').trim() || null;
+  const linkUrl = String(input.linkUrl || '').trim() || null;
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const maxPosition = await tx.promoBanner.aggregate({ _max: { position: true } });
+    const banner = await tx.promoBanner.create({ data: { title, subtitle, linkUrl, imageData: buffer, imageType: mimeType, position: (maxPosition._max.position ?? -1) + 1 }, omit: { imageData: true } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'banner.created', entity: 'PromoBanner', entityId: banner.id } });
+    return serializeBanner(banner);
+  });
+}
+
+export async function updateBanner(role, actorId, input) {
+  requireRole(role, ['Admin', 'Front Desk']);
+  if (!input.id) throw new Error('NOT_FOUND');
+  const title = String(input.title || '').trim() || null;
+  const subtitle = String(input.subtitle || '').trim() || null;
+  const linkUrl = String(input.linkUrl || '').trim() || null;
+  const active = input.active === undefined ? undefined : Boolean(input.active === true || input.active === 'true');
+  const image = input.image ? decodeImageDataUrl(input.image) : null;
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.promoBanner.findUnique({ where: { id: input.id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const banner = await tx.promoBanner.update({ where: { id: input.id }, data: { title, subtitle, linkUrl, ...(active !== undefined ? { active } : {}), ...(image ? { imageData: image.buffer, imageType: image.mimeType } : {}) }, omit: { imageData: true } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'banner.updated', entity: 'PromoBanner', entityId: banner.id } });
+    return serializeBanner(banner);
+  });
+}
+
+export async function reorderBanner(role, actorId, input) {
+  requireRole(role, ['Admin', 'Front Desk']);
+  if (!input.id || !['up', 'down'].includes(input.direction)) throw new Error('INVALID_REORDER');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const banners = await tx.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } });
+    const index = banners.findIndex((banner) => banner.id === input.id);
+    if (index < 0) throw new Error('NOT_FOUND');
+    const swapIndex = input.direction === 'up' ? index - 1 : index + 1;
+    if (swapIndex >= 0 && swapIndex < banners.length) {
+      const a = banners[index]; const b = banners[swapIndex];
+      await tx.promoBanner.update({ where: { id: a.id }, data: { position: b.position } });
+      await tx.promoBanner.update({ where: { id: b.id }, data: { position: a.position } });
+      await tx.auditLog.create({ data: { userId: actor.id, action: 'banner.reordered', entity: 'PromoBanner', entityId: a.id } });
+    }
+    const updated = await tx.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } });
+    return updated.map(serializeBanner);
+  });
+}
+
+export async function deleteBanner(role, actorId, id) {
+  requireRole(role, ['Admin', 'Front Desk']);
+  if (!id) throw new Error('NOT_FOUND');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.promoBanner.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    await tx.promoBanner.delete({ where: { id } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'banner.deleted', entity: 'PromoBanner', entityId: id } });
+    return { success: true };
+  });
+}
+
+export async function getBannerImage(id) {
+  const banner = await prisma.promoBanner.findUnique({ where: { id }, select: { imageData: true, imageType: true } });
+  if (!banner) throw new Error('NOT_FOUND');
+  return banner;
+}
+
+export async function listSocialLinks(role) {
+  requireRole(role, ['Admin']);
+  const links = await prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
+  return links.map(serializeSocialLink);
+}
+
+function socialLinkInput(input) {
+  const platform = String(input.platform || '').trim();
+  const url = String(input.url || '').trim();
+  if (!socialPlatforms.includes(platform) || !/^https?:\/\//i.test(url)) throw new Error('INVALID_SOCIAL_LINK');
+  return { platform, url };
+}
+
+export async function createSocialLink(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const data = socialLinkInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const maxPosition = await tx.socialLink.aggregate({ _max: { position: true } });
+    const link = await tx.socialLink.create({ data: { ...data, position: (maxPosition._max.position ?? -1) + 1 } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'social_link.created', entity: 'SocialLink', entityId: link.id } });
+    return serializeSocialLink(link);
+  });
+}
+
+export async function updateSocialLink(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  if (!input.id) throw new Error('NOT_FOUND');
+  const data = socialLinkInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.socialLink.findUnique({ where: { id: input.id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const link = await tx.socialLink.update({ where: { id: input.id }, data });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'social_link.updated', entity: 'SocialLink', entityId: link.id } });
+    return serializeSocialLink(link);
+  });
+}
+
+export async function deleteSocialLink(role, actorId, id) {
+  requireRole(role, ['Admin']);
+  if (!id) throw new Error('NOT_FOUND');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.socialLink.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    await tx.socialLink.delete({ where: { id } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'social_link.deleted', entity: 'SocialLink', entityId: id } });
+    return { success: true };
+  });
+}
+
+export async function listStaffProfiles(role) {
+  requireRole(role, ['Admin']);
+  const profiles = await prisma.staffProfile.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } });
+  return profiles.map(serializeStaffProfile);
+}
+
+export async function createStaffProfile(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  const name = String(input.name || '').trim();
+  const staffRole = String(input.role || '').trim();
+  const bio = String(input.bio || '').trim() || null;
+  if (!name || !staffRole) throw new Error('INVALID_STAFF_PROFILE');
+  const photo = input.photo ? decodeImageDataUrl(input.photo) : null;
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const maxPosition = await tx.staffProfile.aggregate({ _max: { position: true } });
+    const profile = await tx.staffProfile.create({ data: { name, role: staffRole, bio, photoData: photo?.buffer, photoType: photo?.mimeType, position: (maxPosition._max.position ?? -1) + 1 }, omit: { photoData: true } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'staff_profile.created', entity: 'StaffProfile', entityId: profile.id } });
+    return serializeStaffProfile(profile);
+  });
+}
+
+export async function updateStaffProfile(role, actorId, input) {
+  requireRole(role, ['Admin']);
+  if (!input.id) throw new Error('NOT_FOUND');
+  const name = String(input.name || '').trim();
+  const staffRole = String(input.role || '').trim();
+  const bio = String(input.bio || '').trim() || null;
+  if (!name || !staffRole) throw new Error('INVALID_STAFF_PROFILE');
+  const active = input.active === undefined ? undefined : Boolean(input.active === true || input.active === 'true');
+  const photo = input.photo ? decodeImageDataUrl(input.photo) : null;
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.staffProfile.findUnique({ where: { id: input.id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const profile = await tx.staffProfile.update({ where: { id: input.id }, data: { name, role: staffRole, bio, ...(active !== undefined ? { active } : {}), ...(photo ? { photoData: photo.buffer, photoType: photo.mimeType } : {}) }, omit: { photoData: true } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'staff_profile.updated', entity: 'StaffProfile', entityId: profile.id } });
+    return serializeStaffProfile(profile);
+  });
+}
+
+export async function deleteStaffProfile(role, actorId, id) {
+  requireRole(role, ['Admin']);
+  if (!id) throw new Error('NOT_FOUND');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    const existing = await tx.staffProfile.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw new Error('NOT_FOUND');
+    await tx.staffProfile.delete({ where: { id } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'staff_profile.deleted', entity: 'StaffProfile', entityId: id } });
+    return { success: true };
+  });
+}
+
+export async function getStaffPhoto(id) {
+  const profile = await prisma.staffProfile.findUnique({ where: { id }, select: { photoData: true, photoType: true } });
+  if (!profile || !profile.photoData) throw new Error('NOT_FOUND');
+  return { imageData: profile.photoData, imageType: profile.photoType };
+}
+
+export async function getPublicSiteContent() {
+  const [banners, socialLinks, staffProfiles] = await Promise.all([
+    prisma.promoBanner.findMany({ where: { active: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }),
+    prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }),
+    prisma.staffProfile.findMany({ where: { active: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }),
+  ]);
+  return {
+    banners: banners.map(serializeBanner),
+    socialLinks: socialLinks.map(serializeSocialLink),
+    staffProfiles: staffProfiles.map(serializeStaffProfile),
+  };
+}
+
 async function actorFor(actorId, role, client = prisma) {
   const actor = await client.user.findFirst({ where: { id: actorId, role: dbRole[role], active: true } });
   if (!actor) throw new Error('UNAUTHORIZED');
@@ -172,7 +401,7 @@ export async function getWorkspace(role, actorId) {
     const item = permissionNavigation[permission];
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
-  const [tickets, parts, sales, customers, team, appointments, technicians, inventoryMovements, expenses] = await Promise.all([
+  const [tickets, parts, sales, customers, team, appointments, technicians, inventoryMovements, expenses, banners, socialLinks, staffProfiles] = await Promise.all([
     prisma.repairTicket.findMany({ include: repairInclude, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
     role === 'Technician' && !actor.permissions.includes('MANAGE_POS') && !actor.permissions.includes('VIEW_REPORTS') ? [] : prisma.sale.findMany({ include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } }),
@@ -188,6 +417,9 @@ export async function getWorkspace(role, actorId) {
     role === 'Admin' || actor.permissions.includes('VIEW_REPORTS')
       ? prisma.expense.findMany({ include: { recordedBy: { select: { name: true } } }, orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }] })
       : [],
+    role === 'Admin' || role === 'Front Desk' ? prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }) : [],
+    role === 'Admin' ? prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
+    role === 'Admin' ? prisma.staffProfile.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }) : [],
   ]);
 
   const visibleTickets = role === 'Technician'
@@ -252,6 +484,9 @@ export async function getWorkspace(role, actorId) {
     appointments: appointments.map((item) => ({ id: item.id, reference: item.id.slice(0, 8).toUpperCase(), customer: item.customerName, phone: item.customerPhone, device: item.device, issue: item.issue, preferredDate: item.preferredDate, status: appointmentLabel[item.status] || item.status })),
     technicians,
     team: team.map((user) => ({ id: user.id, email: user.email, name: user.name, role: roleLabel[user.role] || user.role.replace('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase()), permissions: user.permissions, salary: Number(user.salary || 0), rent: Number(user.rent || 0), commission: Number(user.commission || 0), allowance: Number(user.allowance || 0), description: user.role === 'ADMIN' ? 'Protected owner account' : user.role === 'TECHNICIAN' ? 'Repairs and parts' : 'Intake, POS and customers' })),
+    banners: banners.map(serializeBanner),
+    socialLinks: socialLinks.map(serializeSocialLink),
+    staffProfiles: staffProfiles.map(serializeStaffProfile),
   };
 }
 
@@ -497,12 +732,11 @@ export async function updateCustomer(role, actorId, input) {
   });
 }
 
-export async function trackRepair(ticketNumber, phone) {
+export async function trackRepair(ticketNumber) {
   const ticket = String(ticketNumber || '').trim().toUpperCase();
-  const normalizedPhone = normalizeEthiopianPhone(phone);
-  if (!ticket || !normalizedPhone) throw new Error('INVALID_TRACKING');
+  if (!ticket) throw new Error('INVALID_TRACKING');
   const repair = await prisma.repairTicket.findUnique({ where: { ticketNumber: ticket }, include: { assignedTech: { select: { name: true } } } });
-  if (!repair || normalizeEthiopianPhone(repair.customerPhone) !== normalizedPhone) throw new Error('TRACKING_NOT_FOUND');
+  if (!repair) throw new Error('TRACKING_NOT_FOUND');
   return { ticketNumber: repair.ticketNumber, device: repair.deviceModel, status: statusLabel[repair.status], technician: repair.assignedTech?.name || 'Awaiting assignment', receivedAt: repair.createdAt, updatedAt: repair.updatedAt };
 }
 
