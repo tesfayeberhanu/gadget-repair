@@ -18,6 +18,23 @@ export function ResultCount({ shown, total, noun = 'result' }) {
   return <span className="result-count" aria-live="polite">{label}</span>;
 }
 
+export function Pagination({ page, setPage, totalItems, pageSize = 10 }) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  if (totalPages <= 1) return null;
+  const start = totalItems === 0 ? 0 : (page - 1) * pageSize + 1;
+  const end = Math.min(totalItems, page * pageSize);
+  return <div className="pagination" aria-label="Pagination">
+    <span className="pagination-range">{start}–{end} of {totalItems}</span>
+    <div className="pagination-controls">
+      <button type="button" onClick={() => setPage(1)} disabled={page <= 1} aria-label="First page">«</button>
+      <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1} aria-label="Previous page">‹ Prev</button>
+      <span className="pagination-page">Page {page} of {totalPages}</span>
+      <button type="button" onClick={() => setPage((current) => Math.min(totalPages, current + 1))} disabled={page >= totalPages} aria-label="Next page">Next ›</button>
+      <button type="button" onClick={() => setPage(totalPages)} disabled={page >= totalPages} aria-label="Last page">»</button>
+    </div>
+  </div>;
+}
+
 export function RevenueCard() {
   return <section className="card panel revenue"><div className="panel-title"><div><h2>Revenue overview</h2><p>Revenue performance over the last 6 months</p></div></div><div className="chart"><div className="y-axis"><span>ETB 12k</span><span>ETB 8k</span><span>ETB 4k</span><span>ETB 0</span></div><svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-label="Revenue trend"><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#4f46e5" stopOpacity=".28"/><stop offset="1" stopColor="#4f46e5" stopOpacity="0"/></linearGradient></defs><path className="area" d="M0 150 C70 135,90 155,140 117 S230 130,280 90 S365 105,420 58 S515 76,600 28 L600 190 L0 190Z"/><path className="line" d="M0 150 C70 135,90 155,140 117 S230 130,280 90 S365 105,420 58 S515 76,600 28"/></svg><div className="months"><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span></div></div></section>;
 }
