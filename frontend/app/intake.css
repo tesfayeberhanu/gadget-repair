@@ -11,6 +11,16 @@
 .existing-customer-banner span:not(.credit-badge), .new-customer-banner span { color: var(--muted); font-size: 10px; font-weight: 500; }
 .new-customer-banner { border-color: #f5deb7; background: #fff8eb; }
 .new-customer-banner strong { color: #94631b; }
+.existing-customer-banner.clickable { cursor: pointer; outline: none; }
+.existing-customer-banner.clickable:hover, .existing-customer-banner.clickable:focus-visible { border-color: #a9d2ef; background: #eef8ff; }
+.intake-customer-card { grid-column: 1 / -1; border: 1px solid var(--line); border-radius: 8px; padding: 14px; background: #fff; display: grid; gap: 14px; margin-top: -6px; }
+.intake-customer-card-head { display: flex; align-items: center; gap: 10px; }
+.intake-customer-card-head h3 { margin: 0; font-size: 13px; }
+.intake-customer-card-head p { margin: 2px 0 0; font-size: 11px; color: var(--muted); }
+.intake-customer-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.intake-customer-card-stats div { background: #f5f9fc; border-radius: 7px; padding: 9px 11px; display: grid; gap: 2px; }
+.intake-customer-card-stats small { color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
+.intake-customer-card-stats strong { font-size: 13px; color: var(--ink); }
 .intake-modal input[readonly] { background: #f4f7fa; color: #536b85; cursor: not-allowed; }
 .compact-fields { margin-top: 12px; }
 .device-type-row, .check-grid { display: flex; flex-wrap: wrap; gap: 7px; }
@@ -30,6 +40,7 @@
 
 @media (max-width: 760px) {
   .condition-grid { grid-template-columns: 1fr; }
+  .intake-customer-card-stats { grid-template-columns: 1fr; }
   .intake-modal { padding: 17px; }
   .intake-scroll { padding-right: 2px; }
   .existing-customer-banner, .new-customer-banner { align-items: flex-start; flex-direction: column; }

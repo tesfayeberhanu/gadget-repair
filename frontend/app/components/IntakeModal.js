@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { money } from './SharedUI';
 
 const brandModels = {
   Apple: ['iPhone 16 Pro Max', 'iPhone 16', 'iPhone 15 Pro Max', 'iPhone 15', 'iPhone 14 Pro', 'iPhone 14', 'iPhone 13 Pro', 'iPhone 13', 'iPhone 12', 'iPhone 11', 'iPhone X / XS', 'iPad', 'MacBook'],
@@ -60,6 +61,7 @@ export default function IntakeModal({ customer = null, customers = [], close, su
   const [devices, setDevices] = useState([newDevice()]);
   const [submitting, setSubmitting] = useState(false);
   const [phoneValue, setPhoneValue] = useState(customer?.phone || '');
+  const [showCustomerCard, setShowCustomerCard] = useState(false);
   const setDeviceBrand = (index, brand) => setDevices((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, brand } : row));
   const addDevice = () => setDevices((rows) => [...rows, newDevice()]);
   const removeDevice = (index) => setDevices((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
@@ -67,6 +69,7 @@ export default function IntakeModal({ customer = null, customers = [], close, su
   const matchedCustomer = normalizedTypedPhone ? customers.find((item) => item.phone === normalizedTypedPhone) : null;
   const effectiveCustomer = customer || matchedCustomer;
   const isNewCustomer = !customer && Boolean(normalizedTypedPhone) && !matchedCustomer;
+  useEffect(() => setShowCustomerCard(false), [effectiveCustomer?.id]);
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (submitting) return;
@@ -79,7 +82,12 @@ export default function IntakeModal({ customer = null, customers = [], close, su
       <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>{customer ? `New intake for ${customer.name}` : 'Quick device check-in'}</h2><small>{customer ? 'This repair will be added to the existing customer profile.' : 'Check what applies — type only the essentials.'}{devices.length > 1 ? ` Registering ${devices.length} devices for one customer.` : ''}</small></div><button type="button" onClick={close} disabled={submitting}>×</button></div>
       <div className="intake-scroll">
         <section className="intake-section"><h3>Customer / ደንበኛ</h3><div className="form-grid">
-          {effectiveCustomer && <div className="existing-customer-banner wide"><div><strong>Existing customer found</strong><span>This intake will stay linked to {effectiveCustomer.name}&apos;s repair history.</span></div><span className={`credit-badge ${effectiveCustomer.isCreditCustomer ? 'enabled' : ''}`}>{effectiveCustomer.isCreditCustomer ? 'Credit customer' : 'Regular customer'}</span></div>}
+          {effectiveCustomer && <div className="existing-customer-banner clickable wide" role="button" tabIndex={0} onClick={() => setShowCustomerCard((open) => !open)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setShowCustomerCard((open) => !open); } }}><div><strong>Existing customer found</strong><span>This intake will stay linked to {effectiveCustomer.name}&apos;s repair history. {showCustomerCard ? 'Hide details ▲' : 'View details ▼'}</span></div><span className={`credit-badge ${effectiveCustomer.isCreditCustomer ? 'enabled' : ''}`}>{effectiveCustomer.isCreditCustomer ? 'Credit customer' : 'Regular customer'}</span></div>}
+          {effectiveCustomer && showCustomerCard && <div className="intake-customer-card wide">
+            <div className="intake-customer-card-head"><span className="avatar large">{effectiveCustomer.avatar}</span><div><h3>{effectiveCustomer.name}</h3><p>{effectiveCustomer.phone}</p></div></div>
+            <div className="intake-customer-card-stats"><div><small>Repairs on file</small><strong>{effectiveCustomer.repairCount ?? 0}</strong></div><div><small>Balance due</small><strong>{money(effectiveCustomer.accountsReceivable)}</strong></div><div><small>Customer since</small><strong>{effectiveCustomer.createdAt ? new Date(effectiveCustomer.createdAt).toLocaleDateString() : '—'}</strong></div></div>
+            {effectiveCustomer.invoices?.length > 0 ? <div className="table-scroll"><table><thead><tr><th>Invoice</th><th>Item</th><th>Total</th><th>Balance</th><th>Status</th></tr></thead><tbody>{effectiveCustomer.invoices.slice(0, 5).map((invoice) => <tr key={invoice.recordId}><td><strong>{invoice.id}</strong></td><td>{invoice.item}</td><td>{money(invoice.invoiceTotal)}</td><td>{money(invoice.balanceDue)}</td><td>{invoice.status}</td></tr>)}</tbody></table></div> : <p className="empty">No invoices on file yet.</p>}
+          </div>}
           {isNewCustomer && <div className="new-customer-banner wide"><div><strong>New customer</strong><span>No account found for this number — enter their name below to create one.</span></div></div>}
           <label>Phone / ስልክ<input name="phone" type="tel" placeholder="0912345678 or +251912345678" autoComplete="tel" pattern="(?:09\d{8}|\+2519\d{8})" title="Use 09XXXXXXXX or +2519XXXXXXXX" value={phoneValue} onChange={(event) => setPhoneValue(event.target.value)} readOnly={Boolean(customer)} required /></label>
           <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" defaultValue={effectiveCustomer?.name || ''} key={effectiveCustomer?.id || 'blank'} readOnly={Boolean(effectiveCustomer)} required /></label>
