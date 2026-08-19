@@ -545,7 +545,7 @@ export async function getWorkspace(role, actorId) {
     if (expenseDateKey.startsWith(jubaDateParts.year)) totals.yearlyExpenses += amount;
     return totals;
   }, { dailyExpenses: 0, weeklyExpenses: 0, monthlyExpenses: 0, yearlyExpenses: 0 });
-  const reportMetrics = { totalRevenue, cashCollected, accountsReceivable, totalExpenses, ...periodExpenses, netRevenue: totalRevenue - totalExpenses, sparePartsRevenue, accessoriesRevenue, maintenanceRevenue, retailRevenue, completedJobs: completedTickets.length, paidSalesRevenue: cashCollected, grossMargin: 54.2, technicianYield: 6.4 };
+  const reportMetrics = { totalRevenue, cashCollected, accountsReceivable, totalExpenses, ...periodExpenses, netRevenue: totalRevenue - totalExpenses, sparePartsRevenue, accessoriesRevenue, maintenanceRevenue, retailRevenue, completedJobs: completedTickets.length, paidSalesRevenue: cashCollected };
   const dashboard = role === 'Technician'
     ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'DELIVERED').length }
     : role === 'Front Desk'

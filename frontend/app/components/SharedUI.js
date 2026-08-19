@@ -35,13 +35,32 @@ export function Pagination({ page, setPage, totalItems, pageSize = 10 }) {
   </div>;
 }
 
-export function RevenueCard() {
-  return <section className="card panel revenue"><div className="panel-title"><div><h2>Revenue overview</h2><p>Revenue performance over the last 6 months</p></div></div><div className="chart"><div className="y-axis"><span>ETB 12k</span><span>ETB 8k</span><span>ETB 4k</span><span>ETB 0</span></div><svg viewBox="0 0 600 190" preserveAspectRatio="none" aria-label="Revenue trend"><defs><linearGradient id="fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#4f46e5" stopOpacity=".28"/><stop offset="1" stopColor="#4f46e5" stopOpacity="0"/></linearGradient></defs><path className="area" d="M0 150 C70 135,90 155,140 117 S230 130,280 90 S365 105,420 58 S515 76,600 28 L600 190 L0 190Z"/><path className="line" d="M0 150 C70 135,90 155,140 117 S230 130,280 90 S365 105,420 58 S515 76,600 28"/></svg><div className="months"><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span></div></div></section>;
+export function RevenueCard({ dashboard = {} }) {
+  const revenue = Number(dashboard.totalRevenue || 0);
+  const expenses = Number(dashboard.totalExpenses || 0);
+  const net = Number(dashboard.netRevenue ?? (revenue - expenses));
+  const max = Math.max(revenue, expenses, Math.abs(net), 1);
+  const bars = [
+    { label: 'Revenue', value: revenue, color: '#078fe5' },
+    { label: 'Expenses', value: expenses, color: '#eea736' },
+    { label: 'Net revenue', value: net, color: net >= 0 ? '#20b878' : '#e5534b' },
+  ];
+  return <section className="card panel revenue"><div className="panel-title"><div><h2>Revenue overview</h2><p>All-time totals recorded in the system</p></div></div><div className="revenue-bars">{bars.map((bar) => <div className="revenue-bar-row" key={bar.label}><span className="revenue-bar-label">{bar.label}</span><div className="revenue-bar-track"><div className="revenue-bar-fill" style={{ width: `${Math.min(100, Math.abs(bar.value) / max * 100)}%`, background: bar.color }}/></div><b className="revenue-bar-value">{money(bar.value)}</b></div>)}</div></section>;
 }
 
 export function StatusCard({ repairs }) {
   const groups = ['Received', 'Diagnosing', 'Repair Approved', 'In Repair'];
-  return <section className="card panel"><div className="panel-title"><div><h2>Repair status</h2><p>Current workload breakdown</p></div></div><div className="donut-wrap"><div className="donut"><span><b>{repairs.length + 20}</b>total</span></div><div className="legend">{groups.map((group, index) => <div key={group}><i className={`dot d${index}`}></i><span>{group}</span><strong>{[8, 6, 4, 6][index]}</strong></div>)}</div></div></section>;
+  const colors = ['#078fe5', '#1456a0', '#eea736', '#20b878'];
+  const counts = groups.map((group) => repairs.filter((repair) => repair.status === group).length);
+  const total = repairs.length;
+  let offset = 0;
+  const stops = counts.map((count, index) => {
+    const start = offset;
+    offset += total > 0 ? (count / total) * 100 : 0;
+    return `${colors[index]} ${start}% ${offset}%`;
+  });
+  const donutStyle = { background: total > 0 ? `conic-gradient(${stops.join(',')})` : '#eef1f4' };
+  return <section className="card panel"><div className="panel-title"><div><h2>Repair status</h2><p>Current workload breakdown</p></div></div><div className="donut-wrap"><div className="donut" style={donutStyle}><span><b>{total}</b>total</span></div><div className="legend">{groups.map((group, index) => <div key={group}><i className={`dot d${index}`}></i><span>{group}</span><strong>{counts[index]}</strong></div>)}</div></div></section>;
 }
 
 export function QueueCard({ repairs, role, title = 'Recent repairs', actionLabel, onView }) {
