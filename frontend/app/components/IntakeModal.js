@@ -19,6 +19,13 @@ const CheckGroup = ({ title, amharic, name, options }) => <fieldset className="i
   <div className="check-grid">{options.map((option) => <label key={option} className="check-pill"><input type="checkbox" name={name} value={`${title}: ${option}`} /><span>{option}</span></label>)}</div>
 </fieldset>;
 
+function normalizeEthiopianPhone(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (/^09\d{8}$/.test(digits)) return `+251${digits.slice(1)}`;
+  if (/^2519\d{8}$/.test(digits)) return `+${digits}`;
+  return null;
+}
+
 let deviceKeySeed = 0;
 const newDevice = () => ({ key: `device-${++deviceKeySeed}`, brand: 'Apple' });
 
@@ -49,12 +56,17 @@ function DeviceBlock({ device, index, total, onBrandChange, onRemove }) {
   </section>;
 }
 
-export default function IntakeModal({ customer = null, close, submit }) {
+export default function IntakeModal({ customer = null, customers = [], close, submit }) {
   const [devices, setDevices] = useState([newDevice()]);
   const [submitting, setSubmitting] = useState(false);
+  const [phoneValue, setPhoneValue] = useState(customer?.phone || '');
   const setDeviceBrand = (index, brand) => setDevices((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, brand } : row));
   const addDevice = () => setDevices((rows) => [...rows, newDevice()]);
   const removeDevice = (index) => setDevices((rows) => rows.filter((_, rowIndex) => rowIndex !== index));
+  const normalizedTypedPhone = !customer ? normalizeEthiopianPhone(phoneValue) : null;
+  const matchedCustomer = normalizedTypedPhone ? customers.find((item) => item.phone === normalizedTypedPhone) : null;
+  const effectiveCustomer = customer || matchedCustomer;
+  const isNewCustomer = !customer && Boolean(normalizedTypedPhone) && !matchedCustomer;
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (submitting) return;
@@ -67,10 +79,11 @@ export default function IntakeModal({ customer = null, close, submit }) {
       <div className="modal-head"><div><p>REPAIR INTAKE / የጥገና መቀበያ</p><h2>{customer ? `New intake for ${customer.name}` : 'Quick device check-in'}</h2><small>{customer ? 'This repair will be added to the existing customer profile.' : 'Check what applies — type only the essentials.'}{devices.length > 1 ? ` Registering ${devices.length} devices for one customer.` : ''}</small></div><button type="button" onClick={close} disabled={submitting}>×</button></div>
       <div className="intake-scroll">
         <section className="intake-section"><h3>Customer / ደንበኛ</h3><div className="form-grid">
-          {customer && <div className="existing-customer-banner wide"><div><strong>Existing customer</strong><span>This intake will stay linked to {customer.name}&apos;s repair history.</span></div><span className={`credit-badge ${customer.isCreditCustomer ? 'enabled' : ''}`}>{customer.isCreditCustomer ? 'Credit customer' : 'Regular customer'}</span></div>}
-          <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" defaultValue={customer?.name || ''} readOnly={Boolean(customer)} required /></label>
-          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="0912345678 or +251912345678" autoComplete="tel" pattern="(?:09\d{8}|\+2519\d{8})" title="Use 09XXXXXXXX or +2519XXXXXXXX" defaultValue={customer?.phone || ''} readOnly={Boolean(customer)} required /></label>
-          {customer ? <><input type="hidden" name="customerId" value={customer.id} /><input type="hidden" name="isCreditCustomer" value={String(Boolean(customer.isCreditCustomer))} /></> : <label>Credit Customer (new customer)<select name="isCreditCustomer" defaultValue="false"><option value="false">No</option><option value="true">Yes</option></select></label>}
+          {effectiveCustomer && <div className="existing-customer-banner wide"><div><strong>Existing customer found</strong><span>This intake will stay linked to {effectiveCustomer.name}&apos;s repair history.</span></div><span className={`credit-badge ${effectiveCustomer.isCreditCustomer ? 'enabled' : ''}`}>{effectiveCustomer.isCreditCustomer ? 'Credit customer' : 'Regular customer'}</span></div>}
+          {isNewCustomer && <div className="new-customer-banner wide"><div><strong>New customer</strong><span>No account found for this number — enter their name below to create one.</span></div></div>}
+          <label>Phone / ስልክ<input name="phone" type="tel" placeholder="0912345678 or +251912345678" autoComplete="tel" pattern="(?:09\d{8}|\+2519\d{8})" title="Use 09XXXXXXXX or +2519XXXXXXXX" value={phoneValue} onChange={(event) => setPhoneValue(event.target.value)} readOnly={Boolean(customer)} required /></label>
+          <label>Name / ስም<input name="customer" placeholder="Full name" autoComplete="name" defaultValue={effectiveCustomer?.name || ''} key={effectiveCustomer?.id || 'blank'} readOnly={Boolean(effectiveCustomer)} required /></label>
+          {effectiveCustomer ? <><input type="hidden" name="customerId" value={effectiveCustomer.id} /><input type="hidden" name="isCreditCustomer" value={String(Boolean(effectiveCustomer.isCreditCustomer))} /></> : <label>Credit Customer (new customer)<select name="isCreditCustomer" defaultValue="false"><option value="false">No</option><option value="true">Yes</option></select></label>}
         </div></section>
         {devices.map((device, index) => <DeviceBlock key={device.key} device={device} index={index} total={devices.length} onBrandChange={(brand) => setDeviceBrand(index, brand)} onRemove={() => removeDevice(index)} />)}
         <button type="button" className="outline add-part add-device" onClick={addDevice}>＋ Add another device (customer brought in more than one phone)</button>
