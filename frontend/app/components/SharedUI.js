@@ -87,7 +87,7 @@ export function StatusCard({ repairs }) {
   const groups = ['Received', 'Diagnosing', 'Repair Approved', 'In Repair'];
   const colors = ['#078fe5', '#1456a0', '#eea736', '#20b878'];
   const counts = groups.map((group) => repairs.filter((repair) => repair.status === group).length);
-  const total = repairs.length;
+  const total = counts.reduce((sum, count) => sum + count, 0);
   let offset = 0;
   const stops = counts.map((count, index) => {
     const start = offset;
