@@ -1,4 +1,4 @@
-import { LowStockCard, Metric, PageHead, QueueCard, RevenueCard, SalesCard, StatusCard } from './SharedUI';
+import { LowStockCard, Metric, PageHead, QueueCard, RevenueCard, SalesCard, StatHero, StatusCard, WeeklyRepairsChart } from './SharedUI';
 
 export default function Overview({ role, user, repairs, inventory, sales, dashboard, openIntake, setActive }) {
   const activeRepairs = repairs.filter((repair) => repair.status !== 'Ready for Pickup');
@@ -22,9 +22,10 @@ export default function Overview({ role, user, repairs, inventory, sales, dashbo
 
   return <>
     <PageHead eyebrow={today} title={`${greeting}, ${firstName}`}><span className="head-count">Current overview</span></PageHead>
-    <div className="metric-grid"><Metric icon="Br" tone="green" label="Revenue" value={`ETB ${Number(dashboard.totalRevenue || 0).toLocaleString('en-ET')}`} meta="Finalized invoices"/><Metric icon="◇" tone="blue" label="Cash collected" value={`ETB ${Number(dashboard.cashCollected || 0).toLocaleString('en-ET')}`} meta="Payments received"/><Metric icon="⌛" tone="amber" label="Accounts receivable" value={`ETB ${Number(dashboard.accountsReceivable || 0).toLocaleString('en-ET')}`} meta="Customer balances"/><Metric icon="Br" tone="violet" label="Net revenue" value={`ETB ${Number(dashboard.netRevenue || 0).toLocaleString('en-ET')}`} meta="Revenue − expenses"/></div>
+    <div className="stat-hero-grid"><StatHero tone="green" icon="Br" label="Revenue" value={`ETB ${Number(dashboard.totalRevenue || 0).toLocaleString('en-ET')}`} meta="Finalized invoices"/><StatHero tone="blue" icon="◇" label="Cash collected" value={`ETB ${Number(dashboard.cashCollected || 0).toLocaleString('en-ET')}`} meta="Payments received"/><StatHero tone="amber" icon="⌛" label="Accounts receivable" value={`ETB ${Number(dashboard.accountsReceivable || 0).toLocaleString('en-ET')}`} meta="Customer balances"/><StatHero tone="violet" icon="Br" label="Net revenue" value={`ETB ${Number(dashboard.netRevenue || 0).toLocaleString('en-ET')}`} meta="Revenue − expenses"/></div>
     <div className="metric-grid three"><Metric icon="−" tone="amber" label="Expenses this month" value={`ETB ${Number(dashboard.monthlyExpenses || 0).toLocaleString('en-ET')}`} meta="Operating expenses"/><Metric icon="▥" tone="blue" label="Active repairs" value={dashboard.activeRepairs} meta="Live repair queue"/><Metric icon="!" tone="violet" label="Low stock items" value={dashboard.lowStock} meta="At or below threshold"/></div>
     <div className="dashboard-grid"><RevenueCard dashboard={dashboard}/><StatusCard repairs={repairs}/></div>
+    <WeeklyRepairsChart repairs={repairs}/>
     <QueueCard repairs={repairs.slice(0, 4)} role={role} onView={() => setActive('Repairs')} />
     <div className="bottom-grid"><SalesCard sales={sales}/><LowStockCard parts={inventory} onView={() => setActive('Inventory')}/></div>
   </>;

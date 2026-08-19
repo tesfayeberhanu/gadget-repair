@@ -9,6 +9,41 @@ export function DateRangeFilter({ period, setPeriod, from, setFrom, to, setTo, l
 }
 export function PageHead({ eyebrow, title, children }) { return <div className="page-head"><div><p>{eyebrow}</p><h1>{title}</h1></div>{children}</div>; }
 export function Metric({ icon, tone, label, value, meta }) { return <article className="metric card"><div className={`metric-icon ${tone}`}>{icon}</div><div><span>{label}</span><strong>{value}</strong><small>{meta}</small></div></article>; }
+
+const heroWavePaths = {
+  blue: 'M0 26 C18 12,34 34,54 22 S92 8,112 24 S150 32,170 16 S190 10,200 20',
+  green: 'M0 22 C20 32,38 8,58 18 S96 30,116 16 S154 6,174 20 S192 30,200 18',
+  violet: 'M0 18 C16 30,36 10,56 20 S94 32,114 14 S152 8,172 22 S190 28,200 16',
+  amber: 'M0 24 C20 10,40 30,60 20 S98 8,118 22 S156 32,176 14 S194 8,200 18',
+};
+export function StatHero({ tone = 'blue', icon, label, value, meta }) {
+  return <article className={`stat-hero stat-hero-${tone}`}>
+    <span className="stat-hero-icon">{icon}</span>
+    <strong className="stat-hero-value">{value}</strong>
+    <span className="stat-hero-label">{label}</span>
+    {meta && <small className="stat-hero-meta">{meta}</small>}
+    <svg className="stat-hero-wave" viewBox="0 0 200 40" preserveAspectRatio="none" aria-hidden="true"><path d={heroWavePaths[tone] || heroWavePaths.blue}/></svg>
+  </article>;
+}
+
+export function WeeklyRepairsChart({ repairs = [] }) {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const startOfWeek = new Date();
+  startOfWeek.setHours(0, 0, 0, 0);
+  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+  const counts = days.map((_, index) => {
+    const dayStart = new Date(startOfWeek);
+    dayStart.setDate(startOfWeek.getDate() + index);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayStart.getDate() + 1);
+    return repairs.filter((repair) => { const created = new Date(repair.createdAt); return created >= dayStart && created < dayEnd; }).length;
+  });
+  const max = Math.max(1, ...counts);
+  const total = counts.reduce((sum, count) => sum + count, 0);
+  return <section className="card panel weekly-repairs"><div className="panel-title"><div><h2>Repairs this week</h2><p>{total} intake{total === 1 ? '' : 's'} · Monday – Sunday</p></div></div>
+    <div className="weekly-bars">{days.map((day, index) => <div className="weekly-bar-col" key={day}><b>{counts[index]}</b><div className="weekly-bar-track"><div className="weekly-bar-fill" style={{ height: `${(counts[index] / max) * 100}%` }}/></div><span>{day}</span></div>)}</div>
+  </section>;
+}
 export function Status({ value }) { return <span className={`status ${value.toLowerCase().replaceAll(' ', '-')}`}><i></i>{value}</span>; }
 export function SearchBox({ value, onChange, placeholder, label = 'Search' }) {
   return <div className="search-inner list-search"><span aria-hidden="true">⌕</span><input type="search" value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={label} autoComplete="off"/>{value && <button type="button" className="search-clear" onClick={() => onChange('')} aria-label={`Clear ${label.toLowerCase()}`}>×</button>}</div>;
