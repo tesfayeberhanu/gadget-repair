@@ -10,7 +10,7 @@ const navigation = {
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
-const permissionNavigation = { VIEW_REPAIRS: 'Repairs', MANAGE_INTAKE: 'New Intake', MANAGE_APPOINTMENTS: 'Appointments', VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website' };
+const permissionNavigation = { VIEW_REPAIRS: 'Repairs', MANAGE_INTAKE: 'New Intake', MANAGE_APPOINTMENTS: 'Appointments', VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website', MANAGE_WEBSITE_BANNERS: 'Website', MANAGE_WEBSITE_SOCIAL: 'Website', MANAGE_WEBSITE_SHOWCASE: 'Website', MANAGE_WEBSITE_BLOG: 'Website' };
 const allowedPermissions = [...Object.keys(permissionNavigation), 'VIEW_DAILY_SALES', 'VIEW_SPAREPARTS_REVENUE', 'VIEW_ACCESSORIES_REVENUE', 'VIEW_MAINTENANCE_REVENUE', 'VIEW_CASH_COLLECTED', 'VIEW_ACCOUNTS_RECEIVABLE', 'VIEW_DAILY_EXPENSES', 'VIEW_WEEKLY_EXPENSES', 'VIEW_MONTHLY_EXPENSES', 'VIEW_YEARLY_EXPENSES'];
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup', PICKED_UP: 'Delivered' };
@@ -149,7 +149,7 @@ export async function createBlogPost(role, actorId, input) {
   const data = blogPostInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BLOG')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.blogPost.aggregate({ _max: { position: true } });
     const post = await tx.blogPost.create({ data: { ...data, position: (maxPosition._max.position ?? -1) + 1 } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'blog_post.created', entity: 'BlogPost', entityId: post.id } });
@@ -163,7 +163,7 @@ export async function updateBlogPost(role, actorId, input) {
   const active = input.active === undefined ? undefined : Boolean(input.active === true || input.active === 'true');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BLOG')) throw new Error('FORBIDDEN');
     const existing = await tx.blogPost.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const post = await tx.blogPost.update({ where: { id: input.id }, data: { ...data, ...(active !== undefined ? { active } : {}) } });
@@ -176,7 +176,7 @@ export async function deleteBlogPost(role, actorId, id) {
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BLOG')) throw new Error('FORBIDDEN');
     const existing = await tx.blogPost.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.blogPost.delete({ where: { id } });
@@ -189,7 +189,7 @@ export async function reorderBlogPost(role, actorId, input) {
   if (!input.id || !['up', 'down'].includes(input.direction)) throw new Error('INVALID_REORDER');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BLOG')) throw new Error('FORBIDDEN');
     const posts = await tx.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
     const index = posts.findIndex((post) => post.id === input.id);
     if (index < 0) throw new Error('NOT_FOUND');
@@ -218,7 +218,7 @@ export async function createBanner(role, actorId, input) {
   const linkUrl = String(input.linkUrl || '').trim() || null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BANNERS')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.promoBanner.aggregate({ _max: { position: true } });
     const banner = await tx.promoBanner.create({ data: { title, subtitle, linkUrl, imageData: buffer, imageType: mimeType, position: (maxPosition._max.position ?? -1) + 1 }, omit: { imageData: true } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'banner.created', entity: 'PromoBanner', entityId: banner.id } });
@@ -235,7 +235,7 @@ export async function updateBanner(role, actorId, input) {
   const image = input.image ? decodeImageDataUrl(input.image) : null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BANNERS')) throw new Error('FORBIDDEN');
     const existing = await tx.promoBanner.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const banner = await tx.promoBanner.update({ where: { id: input.id }, data: { title, subtitle, linkUrl, ...(active !== undefined ? { active } : {}), ...(image ? { imageData: image.buffer, imageType: image.mimeType } : {}) }, omit: { imageData: true } });
@@ -248,7 +248,7 @@ export async function reorderBanner(role, actorId, input) {
   if (!input.id || !['up', 'down'].includes(input.direction)) throw new Error('INVALID_REORDER');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BANNERS')) throw new Error('FORBIDDEN');
     const banners = await tx.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } });
     const index = banners.findIndex((banner) => banner.id === input.id);
     if (index < 0) throw new Error('NOT_FOUND');
@@ -268,7 +268,7 @@ export async function deleteBanner(role, actorId, id) {
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_BANNERS')) throw new Error('FORBIDDEN');
     const existing = await tx.promoBanner.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.promoBanner.delete({ where: { id } });
@@ -300,7 +300,7 @@ export async function createSocialLink(role, actorId, input) {
   const data = socialLinkInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_SOCIAL')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.socialLink.aggregate({ _max: { position: true } });
     const link = await tx.socialLink.create({ data: { ...data, position: (maxPosition._max.position ?? -1) + 1 } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'social_link.created', entity: 'SocialLink', entityId: link.id } });
@@ -313,7 +313,7 @@ export async function updateSocialLink(role, actorId, input) {
   const data = socialLinkInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_SOCIAL')) throw new Error('FORBIDDEN');
     const existing = await tx.socialLink.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const link = await tx.socialLink.update({ where: { id: input.id }, data });
@@ -326,7 +326,7 @@ export async function deleteSocialLink(role, actorId, id) {
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_SOCIAL')) throw new Error('FORBIDDEN');
     const existing = await tx.socialLink.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.socialLink.delete({ where: { id } });
@@ -349,7 +349,7 @@ export async function createStaffProfile(role, actorId, input) {
   const photo = input.photo ? decodeImageDataUrl(input.photo) : null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_SHOWCASE')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.staffProfile.aggregate({ _max: { position: true } });
     const profile = await tx.staffProfile.create({ data: { name, role: staffRole, bio, photoData: photo?.buffer, photoType: photo?.mimeType, position: (maxPosition._max.position ?? -1) + 1 }, omit: { photoData: true } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'staff_profile.created', entity: 'StaffProfile', entityId: profile.id } });
@@ -367,7 +367,7 @@ export async function updateStaffProfile(role, actorId, input) {
   const photo = input.photo ? decodeImageDataUrl(input.photo) : null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_SHOWCASE')) throw new Error('FORBIDDEN');
     const existing = await tx.staffProfile.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const profile = await tx.staffProfile.update({ where: { id: input.id }, data: { name, role: staffRole, bio, ...(active !== undefined ? { active } : {}), ...(photo ? { photoData: photo.buffer, photoType: photo.mimeType } : {}) }, omit: { photoData: true } });
@@ -380,7 +380,7 @@ export async function deleteStaffProfile(role, actorId, id) {
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE') && !actor.permissions.includes('MANAGE_WEBSITE_SHOWCASE')) throw new Error('FORBIDDEN');
     const existing = await tx.staffProfile.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.staffProfile.delete({ where: { id } });
@@ -498,10 +498,10 @@ export async function getWorkspace(role, actorId) {
     role === 'Admin' || actor.permissions.includes('VIEW_REPORTS')
       ? prisma.expense.findMany({ include: { recordedBy: { select: { name: true } } }, orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }] })
       : [],
-    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }) : [],
-    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
-    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.staffProfile.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }) : [],
-    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') || actor.permissions.includes('MANAGE_WEBSITE_BANNERS') ? prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') || actor.permissions.includes('MANAGE_WEBSITE_SOCIAL') ? prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') || actor.permissions.includes('MANAGE_WEBSITE_SHOWCASE') ? prisma.staffProfile.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') || actor.permissions.includes('MANAGE_WEBSITE_BLOG') ? prisma.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
   ]);
 
   const hasRepairsAccess = role === 'Admin' || actor.permissions.includes('VIEW_REPAIRS');
