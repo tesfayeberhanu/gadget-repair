@@ -11,7 +11,7 @@ const navigation = {
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
 const permissionNavigation = { VIEW_REPAIRS: 'Repairs', MANAGE_INTAKE: 'New Intake', MANAGE_APPOINTMENTS: 'Appointments', VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website' };
-const allowedPermissions = [...Object.keys(permissionNavigation), 'VIEW_DAILY_SALES'];
+const allowedPermissions = [...Object.keys(permissionNavigation), 'VIEW_DAILY_SALES', 'VIEW_SPAREPARTS_REVENUE', 'VIEW_ACCESSORIES_REVENUE', 'VIEW_MAINTENANCE_REVENUE', 'VIEW_CASH_COLLECTED', 'VIEW_ACCOUNTS_RECEIVABLE', 'VIEW_DAILY_EXPENSES', 'VIEW_WEEKLY_EXPENSES', 'VIEW_MONTHLY_EXPENSES', 'VIEW_YEARLY_EXPENSES'];
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup', PICKED_UP: 'Delivered' };
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', UNPAID: 'Unpaid', PARTIALLY_PAID: 'Partially Paid', REFUNDED: 'Refunded' };
@@ -549,10 +549,12 @@ export async function getWorkspace(role, actorId) {
   const reportMetrics = { totalRevenue, cashCollected, accountsReceivable, totalExpenses, ...periodExpenses, netRevenue: totalRevenue - totalExpenses, sparePartsRevenue, accessoriesRevenue, maintenanceRevenue, retailRevenue, completedJobs: completedTickets.length, paidSalesRevenue: cashCollected };
   const hasReportsAccess = role === 'Admin' || actor.permissions.includes('VIEW_REPORTS');
   const hasDailySalesAccess = hasReportsAccess || actor.permissions.includes('VIEW_DAILY_SALES');
+  const metricPermission = { sparePartsRevenue: 'VIEW_SPAREPARTS_REVENUE', accessoriesRevenue: 'VIEW_ACCESSORIES_REVENUE', maintenanceRevenue: 'VIEW_MAINTENANCE_REVENUE', cashCollected: 'VIEW_CASH_COLLECTED', accountsReceivable: 'VIEW_ACCOUNTS_RECEIVABLE', dailyExpenses: 'VIEW_DAILY_EXPENSES', weeklyExpenses: 'VIEW_WEEKLY_EXPENSES', monthlyExpenses: 'VIEW_MONTHLY_EXPENSES', yearlyExpenses: 'VIEW_YEARLY_EXPENSES' };
+  const granularReportFields = Object.fromEntries(Object.entries(reportMetrics).filter(([key]) => hasReportsAccess || (metricPermission[key] && actor.permissions.includes(metricPermission[key]))));
   const dashboard = role === 'Technician'
-    ? (hasReportsAccess ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'DELIVERED').length } : {})
+    ? { ...granularReportFields, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'DELIVERED').length }
     : role === 'Front Desk'
-      ? { ...(hasReportsAccess ? { ...reportMetrics, intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, awaitingAssignment: tickets.filter((ticket) => ticket.status === 'PENDING' && !ticket.assignedTechId).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'DELIVERED').length } : {}), ...(hasDailySalesAccess ? { dailySales: cashCollectedToday } : {}) }
+      ? { ...granularReportFields, ...(hasReportsAccess ? { intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, awaitingAssignment: tickets.filter((ticket) => ticket.status === 'PENDING' && !ticket.assignedTechId).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'DELIVERED').length } : {}), ...(hasDailySalesAccess ? { dailySales: cashCollectedToday } : {}) }
       : { ...reportMetrics, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'DELIVERED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length };
 
   return {

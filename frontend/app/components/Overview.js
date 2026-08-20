@@ -20,7 +20,11 @@ export default function Overview({ role, user, repairs, inventory, sales, dashbo
       {dashboard.awaitingAssignment !== undefined && <Metric icon="♧" tone="amber" label="Awaiting assignment" value={dashboard.awaitingAssignment || 0} meta="Assign to a technician"/>}
       {dashboard.dailySales !== undefined && <Metric icon="Br" tone="violet" label="Daily sales" value={`ETB ${Number(dashboard.dailySales || 0).toLocaleString('en-ET')}`} meta="Paid transactions"/>}
     </div>}
-    {dashboard.totalRevenue !== undefined && <div className="metric-grid three"><Metric icon="Br" tone="green" label="Revenue" value={`ETB ${Number(dashboard.totalRevenue || 0).toLocaleString('en-ET')}`} meta="Finalized invoices"/><Metric icon="◇" tone="blue" label="Cash collected" value={`ETB ${Number(dashboard.cashCollected || 0).toLocaleString('en-ET')}`} meta="Payments received"/><Metric icon="⌛" tone="amber" label="Accounts receivable" value={`ETB ${Number(dashboard.accountsReceivable || 0).toLocaleString('en-ET')}`} meta="Customer balances"/></div>}
+    {(dashboard.totalRevenue !== undefined || dashboard.cashCollected !== undefined || dashboard.accountsReceivable !== undefined) && <div className="metric-grid three">
+      {dashboard.totalRevenue !== undefined && <Metric icon="Br" tone="green" label="Revenue" value={`ETB ${Number(dashboard.totalRevenue || 0).toLocaleString('en-ET')}`} meta="Finalized invoices"/>}
+      {dashboard.cashCollected !== undefined && <Metric icon="◇" tone="blue" label="Cash collected" value={`ETB ${Number(dashboard.cashCollected || 0).toLocaleString('en-ET')}`} meta="Payments received"/>}
+      {dashboard.accountsReceivable !== undefined && <Metric icon="⌛" tone="amber" label="Accounts receivable" value={`ETB ${Number(dashboard.accountsReceivable || 0).toLocaleString('en-ET')}`} meta="Customer balances"/>}
+    </div>}
     <QueueCard repairs={repairs.filter((repair) => repair.status === 'Received' && repair.tech === 'Unassigned')} role={role} title="Assign to Technician" actionLabel="Assign technician" onView={() => setActive('Repairs')} />
   </>;
 
