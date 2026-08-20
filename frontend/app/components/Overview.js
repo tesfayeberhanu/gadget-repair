@@ -1,6 +1,6 @@
 import { LowStockCard, Metric, PageHead, QueueCard, RevenueCard, SalesCard, StatHero, StatusCard, WeeklyRepairsChart } from './SharedUI';
 
-export default function Overview({ role, user, repairs, inventory, sales, dashboard, openIntake, setActive }) {
+export default function Overview({ role, user, repairs, inventory, sales, dashboard, canCreateIntake, canViewRepairs, openIntake, setActive }) {
   const activeRepairs = repairs.filter((repair) => repair.status !== 'Ready for Pickup');
   const today = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date()).toUpperCase();
   const firstName = user?.name?.trim().split(/\s+/)[0] || role;
@@ -8,13 +8,13 @@ export default function Overview({ role, user, repairs, inventory, sales, dashbo
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   if (role === 'Technician') return <>
-    <PageHead eyebrow={today} title={`${greeting}, ${firstName}`}><button className="outline" onClick={() => setActive('Repairs')}>Open my queue →</button></PageHead>
+    <PageHead eyebrow={today} title={`${greeting}, ${firstName}`}>{canViewRepairs && <button className="outline" onClick={() => setActive('Repairs')}>Open my queue →</button>}</PageHead>
     {dashboard.assignedPending !== undefined && <div className="metric-grid three"><Metric icon="⌛" tone="amber" label="Assigned queue" value={dashboard.assignedPending} meta="Server-calculated"/><Metric icon="↻" tone="blue" label="In repair" value={dashboard.inProgress} meta="Live repair queue"/><Metric icon="✓" tone="green" label="Ready for pickup" value={dashboard.completedToday} meta="Server-calculated"/></div>}
     <QueueCard repairs={activeRepairs} role={role} onView={() => setActive('Repairs')} />
   </>;
 
   if (role === 'Front Desk') return <>
-    <PageHead eyebrow={today} title={`${firstName}'s front desk overview`}><button className="primary" onClick={() => openIntake()}>＋ New repair intake</button></PageHead>
+    <PageHead eyebrow={today} title={`${firstName}'s front desk overview`}>{canCreateIntake && <button className="primary" onClick={() => openIntake()}>＋ New repair intake</button>}</PageHead>
     {(dashboard.intakesToday !== undefined || dashboard.dailySales !== undefined) && <div className="metric-grid three">
       {dashboard.intakesToday !== undefined && <Metric icon="＋" tone="blue" label="Intakes today" value={dashboard.intakesToday} meta="Server-calculated"/>}
       {dashboard.awaitingAssignment !== undefined && <Metric icon="♧" tone="amber" label="Awaiting assignment" value={dashboard.awaitingAssignment || 0} meta="Assign to a technician"/>}

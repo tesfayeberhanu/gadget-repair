@@ -5,12 +5,12 @@ import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEl
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website', 'Settings'],
-  Technician: ['Overview', 'Repairs', 'Settings'],
-  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers', 'Settings'],
+  Technician: ['Overview', 'Settings'],
+  'Front Desk': ['Overview', 'Settings'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
-const permissionNavigation = { VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website' };
+const permissionNavigation = { VIEW_REPAIRS: 'Repairs', MANAGE_INTAKE: 'New Intake', MANAGE_APPOINTMENTS: 'Appointments', VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website' };
 const allowedPermissions = [...Object.keys(permissionNavigation), 'VIEW_DAILY_SALES'];
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup', PICKED_UP: 'Delivered' };
@@ -485,13 +485,13 @@ export async function getWorkspace(role, actorId) {
   const [tickets, parts, sales, customers, team, appointments, technicians, inventoryMovements, expenses, banners, socialLinks, staffProfiles, blogPosts] = await Promise.all([
     prisma.repairTicket.findMany({ include: repairInclude, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
-    role === 'Technician' && !actor.permissions.includes('MANAGE_POS') && !actor.permissions.includes('VIEW_REPORTS') ? [] : prisma.sale.findMany({ include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } }),
-    role === 'Admin' || role === 'Front Desk' || actor.permissions.includes('VIEW_CUSTOMERS')
+    role === 'Admin' || actor.permissions.includes('MANAGE_POS') || actor.permissions.includes('VIEW_REPORTS') || actor.permissions.includes('VIEW_DAILY_SALES') ? prisma.sale.findMany({ include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } }) : [],
+    role === 'Admin' || actor.permissions.includes('VIEW_CUSTOMERS')
       ? prisma.customer.findMany({ include: { _count: { select: { repairs: true } }, sales: { include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } } }, orderBy: { name: 'asc' } })
       : [],
     role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true, salary: true, rent: true, commission: true, allowance: true }, orderBy: { createdAt: 'asc' } }) : [],
-    role === 'Front Desk' ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
-    role === 'Front Desk' ? prisma.user.findMany({ where: { role: 'TECHNICIAN', active: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_APPOINTMENTS') ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
+    role === 'Admin' || actor.permissions.includes('VIEW_REPAIRS') ? prisma.user.findMany({ where: { role: 'TECHNICIAN', active: true }, select: { id: true, name: true }, orderBy: { name: 'asc' } }) : [],
     role === 'Admin' || actor.permissions.includes('VIEW_REPORTS')
       ? prisma.inventoryMovement.findMany()
       : [],
@@ -504,7 +504,8 @@ export async function getWorkspace(role, actorId) {
     role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
   ]);
 
-  const visibleTickets = role === 'Technician'
+  const hasRepairsAccess = role === 'Admin' || actor.permissions.includes('VIEW_REPAIRS');
+  const visibleTickets = !hasRepairsAccess ? [] : role === 'Technician'
     ? tickets.filter((ticket) => ticket.assignedTechId === actor.id)
     : tickets;
   const repairs = visibleTickets.map((ticket) => serializeRepair(ticket, role, actor?.id));
@@ -792,6 +793,7 @@ export async function createCustomer(role, actorId, input) {
   const data = customerInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_CUSTOMERS')) throw new Error('FORBIDDEN');
     const existing = await tx.customer.findUnique({ where: { phone: data.phone }, select: { id: true } });
     if (existing) throw new Error('CUSTOMER_PHONE_EXISTS');
     const customer = await tx.customer.create({ data });
@@ -806,6 +808,7 @@ export async function updateCustomer(role, actorId, input) {
   const data = customerInput(input, true);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_CUSTOMERS')) throw new Error('FORBIDDEN');
     const existing = await tx.customer.findUnique({ where: { id: input.id } });
     if (!existing) throw new Error('NOT_FOUND');
     const duplicate = await tx.customer.findFirst({ where: { phone: data.phone, id: { not: existing.id } }, select: { id: true } });
@@ -842,6 +845,7 @@ export async function reviewAppointment(role, actorId, input) {
   if (!input.id || !status) throw new Error('INVALID_APPOINTMENT_ACTION');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (!actor.permissions.includes('MANAGE_APPOINTMENTS')) throw new Error('FORBIDDEN');
     const appointment = await tx.appointment.findUnique({ where: { id: input.id } });
     if (!appointment) throw new Error('NOT_FOUND');
     if (appointment.status !== 'REQUESTED') throw new Error('APPOINTMENT_REVIEWED');
@@ -862,6 +866,7 @@ export async function createRepair(role, actorId, input) {
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (!actor.permissions.includes('MANAGE_INTAKE')) throw new Error('FORBIDDEN');
     const selectedCustomerId = String(input.customerId || '').trim();
     const suppliedCustomerName = String(input.customer).trim();
     const customer = selectedCustomerId
@@ -894,6 +899,7 @@ export async function advanceRepair(role, actorId, ticketNumber) {
   requireRole(role, ['Technician']);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (!actor.permissions.includes('VIEW_REPAIRS')) throw new Error('FORBIDDEN');
     const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber }, include: repairInclude });
     if (!ticket) throw new Error('NOT_FOUND');
     if (ticket.status === 'PENDING' && ticket.assignedTechId && ticket.assignedTechId !== actor.id) throw new Error('FORBIDDEN');
@@ -920,6 +926,7 @@ export async function updateRepairProgress(role, actorId, input) {
   if (hasServiceCharge && (!Number.isFinite(serviceCharge) || serviceCharge < 0)) throw new Error('INVALID_SERVICE_CHARGE');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (!actor.permissions.includes('VIEW_REPAIRS')) throw new Error('FORBIDDEN');
     const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber: input.id }, include: repairInclude });
     if (!ticket) throw new Error('NOT_FOUND');
 
@@ -1005,6 +1012,7 @@ export async function assignRepair(role, actorId, input) {
   if (!input.id || !input.technicianId) throw new Error('INVALID_ASSIGNMENT');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (!actor.permissions.includes('VIEW_REPAIRS')) throw new Error('FORBIDDEN');
     const technician = await tx.user.findFirst({ where: { id: input.technicianId, role: 'TECHNICIAN', active: true } });
     if (!technician) throw new Error('INVALID_ASSIGNMENT');
     const ticket = await tx.repairTicket.findUnique({ where: { ticketNumber: input.id } });
@@ -1022,6 +1030,7 @@ export async function confirmDelivery(role, actorId, input) {
   if (!input.id || !password) throw new Error('DELIVERY_AUTH_REQUIRED');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (!actor.permissions.includes('VIEW_REPAIRS')) throw new Error('FORBIDDEN');
     if (!verifyPassword(password, actor.password)) throw new Error('INVALID_DELIVERY_AUTH');
     const ticket = await tx.repairTicket.findUnique({
       where: { ticketNumber: input.id },
@@ -1073,7 +1082,7 @@ export async function recordInvoicePayment(role, actorId, input) {
   if (!input.saleId) throw new Error('INVALID_PAYMENT');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (!['Admin', 'Front Desk'].includes(role) && !actor.permissions.includes('MANAGE_POS')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_POS')) throw new Error('FORBIDDEN');
     const sale = await tx.sale.findUnique({ where: { id: input.saleId }, include: { payments: true } });
     if (!sale) throw new Error('NOT_FOUND');
     await addPaymentInTransaction(tx, actor, sale, input);
