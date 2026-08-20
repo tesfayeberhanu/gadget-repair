@@ -1,12 +1,12 @@
 import { prisma } from './prisma.js';
-import { createSession, hashPassword, requireRole, verifyPassword } from './auth.js';
+import { createSession, hashPassword, requireRole, ROLES, verifyPassword } from './auth.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials } from './accounting.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website', 'Settings'],
-  Technician: ['Overview', 'Repairs', 'Inventory'],
-  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers', 'Website'],
+  Technician: ['Overview', 'Repairs', 'Inventory', 'Settings'],
+  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers', 'Website', 'Settings'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
@@ -574,7 +574,7 @@ export async function getWorkspace(role, actorId) {
 }
 
 export async function updateProfile(role, actorId, input) {
-  requireRole(role, ['Admin']);
+  requireRole(role, ROLES);
   const name = String(input.name || '').trim();
   const email = String(input.email || '').trim().toLowerCase();
   if (!name || !email.includes('@')) throw new Error('INVALID_PROFILE');
@@ -589,7 +589,7 @@ export async function updateProfile(role, actorId, input) {
 }
 
 export async function changePassword(role, actorId, input) {
-  requireRole(role, ['Admin']);
+  requireRole(role, ROLES);
   const currentPassword = String(input.currentPassword || '');
   const newPassword = String(input.newPassword || '');
   if (newPassword.length < 10) throw new Error('INVALID_NEW_PASSWORD');
