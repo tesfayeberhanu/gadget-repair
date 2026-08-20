@@ -9,13 +9,13 @@ export default function Overview({ role, user, repairs, inventory, sales, dashbo
 
   if (role === 'Technician') return <>
     <PageHead eyebrow={today} title={`${greeting}, ${firstName}`}><button className="outline" onClick={() => setActive('Repairs')}>Open my queue →</button></PageHead>
-    <div className="metric-grid three"><Metric icon="⌛" tone="amber" label="Assigned queue" value={dashboard.assignedPending} meta="Server-calculated"/><Metric icon="↻" tone="blue" label="In repair" value={dashboard.inProgress} meta="Live repair queue"/><Metric icon="✓" tone="green" label="Ready for pickup" value={dashboard.completedToday} meta="Server-calculated"/></div>
+    {dashboard.assignedPending !== undefined && <div className="metric-grid three"><Metric icon="⌛" tone="amber" label="Assigned queue" value={dashboard.assignedPending} meta="Server-calculated"/><Metric icon="↻" tone="blue" label="In repair" value={dashboard.inProgress} meta="Live repair queue"/><Metric icon="✓" tone="green" label="Ready for pickup" value={dashboard.completedToday} meta="Server-calculated"/></div>}
     <QueueCard repairs={activeRepairs} role={role} onView={() => setActive('Repairs')} />
   </>;
 
   if (role === 'Front Desk') return <>
     <PageHead eyebrow={today} title={`${firstName}'s front desk overview`}><button className="primary" onClick={() => openIntake()}>＋ New repair intake</button></PageHead>
-    <div className="metric-grid three"><Metric icon="＋" tone="blue" label="Intakes today" value={dashboard.intakesToday} meta="Server-calculated"/><Metric icon="♧" tone="amber" label="Awaiting assignment" value={dashboard.awaitingAssignment || 0} meta="Assign to a technician"/><Metric icon="Br" tone="violet" label="Daily sales" value={`ETB ${Number(dashboard.dailySales || 0).toLocaleString('en-ET')}`} meta="Paid transactions"/></div>
+    {dashboard.intakesToday !== undefined && <div className="metric-grid three"><Metric icon="＋" tone="blue" label="Intakes today" value={dashboard.intakesToday} meta="Server-calculated"/><Metric icon="♧" tone="amber" label="Awaiting assignment" value={dashboard.awaitingAssignment || 0} meta="Assign to a technician"/><Metric icon="Br" tone="violet" label="Daily sales" value={`ETB ${Number(dashboard.dailySales || 0).toLocaleString('en-ET')}`} meta="Paid transactions"/></div>}
     {dashboard.totalRevenue !== undefined && <div className="metric-grid three"><Metric icon="Br" tone="green" label="Revenue" value={`ETB ${Number(dashboard.totalRevenue || 0).toLocaleString('en-ET')}`} meta="Finalized invoices"/><Metric icon="◇" tone="blue" label="Cash collected" value={`ETB ${Number(dashboard.cashCollected || 0).toLocaleString('en-ET')}`} meta="Payments received"/><Metric icon="⌛" tone="amber" label="Accounts receivable" value={`ETB ${Number(dashboard.accountsReceivable || 0).toLocaleString('en-ET')}`} meta="Customer balances"/></div>}
     <QueueCard repairs={repairs.filter((repair) => repair.status === 'Received' && repair.tech === 'Unassigned')} role={role} title="Assign to Technician" actionLabel="Assign technician" onView={() => setActive('Repairs')} />
   </>;
