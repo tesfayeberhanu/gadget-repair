@@ -38,7 +38,7 @@ function DeviceBlock({ device, index, total, onBrandChange, onRemove }) {
     <div className="form-grid compact-fields">
       <label>Brand / ብራንድ<select name={`${prefix}brand`} value={device.brand} onChange={(event) => onBrandChange(event.target.value)}>{Object.keys(brandModels).map((item) => <option key={item}>{item}</option>)}</select></label>
       <label>Model / ሞዴል<select name={`${prefix}device`} key={device.brand} required>{brandModels[device.brand].map((model) => <option key={model}>{model}</option>)}</select></label>
-      <label>IMEI / Serial<input name={`${prefix}imei`} placeholder="Scan or type" required /></label>
+      <label>IMEI / Serial<input name={`${prefix}imei`} placeholder="Scan or type" onKeyDown={(event) => { if (event.key === 'Enter') event.preventDefault(); }} required /></label>
       <label>Color / ቀለም<input name={`${prefix}color`} placeholder="Color" /></label>
       <label>Estimated Maintenance Charge (ETB)<input name={`${prefix}estimate`} type="number" min="0" step="0.01" placeholder="0.00" required /></label>
     </div>

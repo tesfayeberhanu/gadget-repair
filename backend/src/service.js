@@ -5,12 +5,12 @@ import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEl
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website', 'Settings'],
-  Technician: ['Overview', 'Repairs', 'Inventory', 'Settings'],
-  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers', 'Website', 'Settings'],
+  Technician: ['Overview', 'Repairs', 'Settings'],
+  'Front Desk': ['Overview', 'New Intake', 'Appointments', 'Repairs', 'Point of Sale', 'Customers', 'Settings'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
-const permissionNavigation = { VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory' };
+const permissionNavigation = { VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website' };
 const allowedPermissions = Object.keys(permissionNavigation);
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup', PICKED_UP: 'Delivered' };
@@ -146,10 +146,10 @@ function blogPostInput(input) {
 }
 
 export async function createBlogPost(role, actorId, input) {
-  requireRole(role, ['Admin']);
   const data = blogPostInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.blogPost.aggregate({ _max: { position: true } });
     const post = await tx.blogPost.create({ data: { ...data, position: (maxPosition._max.position ?? -1) + 1 } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'blog_post.created', entity: 'BlogPost', entityId: post.id } });
@@ -158,12 +158,12 @@ export async function createBlogPost(role, actorId, input) {
 }
 
 export async function updateBlogPost(role, actorId, input) {
-  requireRole(role, ['Admin']);
   if (!input.id) throw new Error('NOT_FOUND');
   const data = blogPostInput(input);
   const active = input.active === undefined ? undefined : Boolean(input.active === true || input.active === 'true');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.blogPost.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const post = await tx.blogPost.update({ where: { id: input.id }, data: { ...data, ...(active !== undefined ? { active } : {}) } });
@@ -173,10 +173,10 @@ export async function updateBlogPost(role, actorId, input) {
 }
 
 export async function deleteBlogPost(role, actorId, id) {
-  requireRole(role, ['Admin']);
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.blogPost.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.blogPost.delete({ where: { id } });
@@ -186,10 +186,10 @@ export async function deleteBlogPost(role, actorId, id) {
 }
 
 export async function reorderBlogPost(role, actorId, input) {
-  requireRole(role, ['Admin']);
   if (!input.id || !['up', 'down'].includes(input.direction)) throw new Error('INVALID_REORDER');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const posts = await tx.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] });
     const index = posts.findIndex((post) => post.id === input.id);
     if (index < 0) throw new Error('NOT_FOUND');
@@ -212,13 +212,13 @@ export async function listBanners(role) {
 }
 
 export async function createBanner(role, actorId, input) {
-  requireRole(role, ['Admin', 'Front Desk']);
   const { buffer, mimeType } = decodeImageDataUrl(input.image);
   const title = String(input.title || '').trim() || null;
   const subtitle = String(input.subtitle || '').trim() || null;
   const linkUrl = String(input.linkUrl || '').trim() || null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.promoBanner.aggregate({ _max: { position: true } });
     const banner = await tx.promoBanner.create({ data: { title, subtitle, linkUrl, imageData: buffer, imageType: mimeType, position: (maxPosition._max.position ?? -1) + 1 }, omit: { imageData: true } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'banner.created', entity: 'PromoBanner', entityId: banner.id } });
@@ -227,7 +227,6 @@ export async function createBanner(role, actorId, input) {
 }
 
 export async function updateBanner(role, actorId, input) {
-  requireRole(role, ['Admin', 'Front Desk']);
   if (!input.id) throw new Error('NOT_FOUND');
   const title = String(input.title || '').trim() || null;
   const subtitle = String(input.subtitle || '').trim() || null;
@@ -236,6 +235,7 @@ export async function updateBanner(role, actorId, input) {
   const image = input.image ? decodeImageDataUrl(input.image) : null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.promoBanner.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const banner = await tx.promoBanner.update({ where: { id: input.id }, data: { title, subtitle, linkUrl, ...(active !== undefined ? { active } : {}), ...(image ? { imageData: image.buffer, imageType: image.mimeType } : {}) }, omit: { imageData: true } });
@@ -245,10 +245,10 @@ export async function updateBanner(role, actorId, input) {
 }
 
 export async function reorderBanner(role, actorId, input) {
-  requireRole(role, ['Admin', 'Front Desk']);
   if (!input.id || !['up', 'down'].includes(input.direction)) throw new Error('INVALID_REORDER');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const banners = await tx.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } });
     const index = banners.findIndex((banner) => banner.id === input.id);
     if (index < 0) throw new Error('NOT_FOUND');
@@ -265,10 +265,10 @@ export async function reorderBanner(role, actorId, input) {
 }
 
 export async function deleteBanner(role, actorId, id) {
-  requireRole(role, ['Admin', 'Front Desk']);
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.promoBanner.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.promoBanner.delete({ where: { id } });
@@ -297,10 +297,10 @@ function socialLinkInput(input) {
 }
 
 export async function createSocialLink(role, actorId, input) {
-  requireRole(role, ['Admin']);
   const data = socialLinkInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.socialLink.aggregate({ _max: { position: true } });
     const link = await tx.socialLink.create({ data: { ...data, position: (maxPosition._max.position ?? -1) + 1 } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'social_link.created', entity: 'SocialLink', entityId: link.id } });
@@ -309,11 +309,11 @@ export async function createSocialLink(role, actorId, input) {
 }
 
 export async function updateSocialLink(role, actorId, input) {
-  requireRole(role, ['Admin']);
   if (!input.id) throw new Error('NOT_FOUND');
   const data = socialLinkInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.socialLink.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const link = await tx.socialLink.update({ where: { id: input.id }, data });
@@ -323,10 +323,10 @@ export async function updateSocialLink(role, actorId, input) {
 }
 
 export async function deleteSocialLink(role, actorId, id) {
-  requireRole(role, ['Admin']);
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.socialLink.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.socialLink.delete({ where: { id } });
@@ -342,7 +342,6 @@ export async function listStaffProfiles(role) {
 }
 
 export async function createStaffProfile(role, actorId, input) {
-  requireRole(role, ['Admin']);
   const name = String(input.name || '').trim();
   const staffRole = String(input.role || '').trim();
   const bio = String(input.bio || '').trim() || null;
@@ -350,6 +349,7 @@ export async function createStaffProfile(role, actorId, input) {
   const photo = input.photo ? decodeImageDataUrl(input.photo) : null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const maxPosition = await tx.staffProfile.aggregate({ _max: { position: true } });
     const profile = await tx.staffProfile.create({ data: { name, role: staffRole, bio, photoData: photo?.buffer, photoType: photo?.mimeType, position: (maxPosition._max.position ?? -1) + 1 }, omit: { photoData: true } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'staff_profile.created', entity: 'StaffProfile', entityId: profile.id } });
@@ -358,7 +358,6 @@ export async function createStaffProfile(role, actorId, input) {
 }
 
 export async function updateStaffProfile(role, actorId, input) {
-  requireRole(role, ['Admin']);
   if (!input.id) throw new Error('NOT_FOUND');
   const name = String(input.name || '').trim();
   const staffRole = String(input.role || '').trim();
@@ -368,6 +367,7 @@ export async function updateStaffProfile(role, actorId, input) {
   const photo = input.photo ? decodeImageDataUrl(input.photo) : null;
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.staffProfile.findUnique({ where: { id: input.id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     const profile = await tx.staffProfile.update({ where: { id: input.id }, data: { name, role: staffRole, bio, ...(active !== undefined ? { active } : {}), ...(photo ? { photoData: photo.buffer, photoType: photo.mimeType } : {}) }, omit: { photoData: true } });
@@ -377,10 +377,10 @@ export async function updateStaffProfile(role, actorId, input) {
 }
 
 export async function deleteStaffProfile(role, actorId, id) {
-  requireRole(role, ['Admin']);
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_WEBSITE')) throw new Error('FORBIDDEN');
     const existing = await tx.staffProfile.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw new Error('NOT_FOUND');
     await tx.staffProfile.delete({ where: { id } });
@@ -498,10 +498,10 @@ export async function getWorkspace(role, actorId) {
     role === 'Admin' || actor.permissions.includes('VIEW_REPORTS')
       ? prisma.expense.findMany({ include: { recordedBy: { select: { name: true } } }, orderBy: [{ expenseDate: 'desc' }, { createdAt: 'desc' }] })
       : [],
-    role === 'Admin' || role === 'Front Desk' ? prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }) : [],
-    role === 'Admin' ? prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
-    role === 'Admin' ? prisma.staffProfile.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }) : [],
-    role === 'Admin' ? prisma.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.promoBanner.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { imageData: true } }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.socialLink.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.staffProfile.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }], omit: { photoData: true } }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_WEBSITE') ? prisma.blogPost.findMany({ orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }) : [],
   ]);
 
   const visibleTickets = role === 'Technician'
@@ -574,7 +574,7 @@ export async function getWorkspace(role, actorId) {
 }
 
 export async function updateProfile(role, actorId, input) {
-  requireRole(role, ROLES);
+  requireRole(role, ['Admin']);
   const name = String(input.name || '').trim();
   const email = String(input.email || '').trim().toLowerCase();
   if (!name || !email.includes('@')) throw new Error('INVALID_PROFILE');

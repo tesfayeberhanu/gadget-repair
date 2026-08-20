@@ -76,11 +76,11 @@ export function RevenueCard({ dashboard = {} }) {
   const net = Number(dashboard.netRevenue ?? (revenue - expenses));
   const max = Math.max(revenue, expenses, Math.abs(net), 1);
   const bars = [
-    { label: 'Revenue', value: revenue, color: 'var(--blue)' },
-    { label: 'Expenses', value: expenses, color: 'var(--amber)' },
-    { label: 'Net revenue', value: net, color: net >= 0 ? 'var(--green)' : '#e5534b' },
+    { label: 'Revenue', value: revenue, color: '#078fe5' },
+    { label: 'Expenses', value: expenses, color: '#eea736' },
+    { label: 'Net revenue', value: net, color: net >= 0 ? '#20b878' : '#e5534b' },
   ];
-  return <section className="card panel revenue"><div className="panel-title"><div><h2>Revenue overview</h2><p>All-time totals recorded in the system</p></div></div><div className="revenue-bars">{bars.map((bar) => <div className="revenue-bar-col" key={bar.label}><b>{money(bar.value)}</b><div className="revenue-bar-track"><div className="revenue-bar-fill" style={{ height: `${Math.min(100, Math.abs(bar.value) / max * 100)}%`, background: bar.color }}/></div><span>{bar.label}</span></div>)}</div></section>;
+  return <section className="card panel revenue"><div className="panel-title"><div><h2>Revenue overview</h2><p>All-time totals recorded in the system</p></div></div><div className="revenue-bars">{bars.map((bar) => <div className="revenue-bar-row" key={bar.label}><span className="revenue-bar-label">{bar.label}</span><div className="revenue-bar-track"><div className="revenue-bar-fill" style={{ width: `${Math.min(100, Math.abs(bar.value) / max * 100)}%`, background: bar.color }}/></div><b className="revenue-bar-value">{money(bar.value)}</b></div>)}</div></section>;
 }
 
 export function StatusCard({ repairs }) {

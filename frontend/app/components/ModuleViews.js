@@ -345,7 +345,7 @@ export function TeamView({ team, createStaff, updateStaff, deactivateStaff }) {
   const pageTeam = visibleTeam.slice((teamPage - 1) * PAGE_SIZE, teamPage * PAGE_SIZE);
   return <><PageHead eyebrow="ACCESS CONTROL" title="Team & roles"><div className="page-actions"><button className="primary" onClick={() => { setEditing(null); setAdding(true); }}>＋ Add staff</button></div></PageHead>
     <div className="toolbar card list-toolbar"><SearchBox value={teamSearch} onChange={setTeamSearch} placeholder="Search name, email, role or permission" label="Search team"/><ResultCount shown={visibleTeam.length} total={team.length} noun="member"/><select value={teamRoleFilter} onChange={(event) => setTeamRoleFilter(event.target.value)} aria-label="Filter team by role"><option>All</option><option>Admin</option><option>Technician</option><option>Front Desk</option></select><select value={teamSort} onChange={(event) => setTeamSort(event.target.value)} aria-label="Sort team"><option value="name">Name A–Z</option><option value="name-desc">Name Z–A</option><option value="role">Role A–Z</option><option value="email">Email A–Z</option></select></div>
-    {adding && <form className="card staff-form" onSubmit={submit}><label>Full name<input name="name" defaultValue={editing?.name || ''} required /></label><label>Email<input name="email" type="email" defaultValue={editing?.email || ''} required /></label><label>Base role<select name="role" defaultValue={editing?.role || 'Technician'}><option>Technician</option><option>Front Desk</option></select></label><label>{editing ? 'New password (optional)' : 'Temporary password'}<input name="password" type="password" minLength="10" required={!editing} placeholder={editing ? 'Leave blank to keep current password' : ''}/></label><fieldset className="compensation-picker"><legend>Staff compensation (ETB)</legend>{[['salary','Salary'],['rent','Rent'],['commission','Commission'],['allowance','Allowance']].map(([name,label]) => <label key={name}>{label}<input name={name} type="number" min="0" step="0.01" defaultValue={editing?.[name] ?? 0} required /></label>)}<small>These are staff terms. Record actual payments in Expenses when paid.</small></fieldset><fieldset className="permission-picker"><legend>Additional permissions</legend>{[['VIEW_REPORTS','Reports'],['VIEW_CUSTOMERS','Customer data'],['MANAGE_POS','Point of sale'],['VIEW_INVENTORY','Inventory']].map(([value,label]) => <label key={value}><input type="checkbox" name="permissions" value={value} defaultChecked={editing?.permissions?.includes(value) || false}/>{label}</label>)}</fieldset><div><button type="button" className="outline" onClick={closeForm}>Cancel</button><button className="primary">{editing ? 'Save changes' : 'Create account'}</button></div></form>}
+    {adding && <form className="card staff-form" onSubmit={submit}><label>Full name<input name="name" defaultValue={editing?.name || ''} required /></label><label>Email<input name="email" type="email" defaultValue={editing?.email || ''} required /></label><label>Base role<select name="role" defaultValue={editing?.role || 'Technician'}><option>Technician</option><option>Front Desk</option></select></label><label>{editing ? 'New password (optional)' : 'Temporary password'}<input name="password" type="password" minLength="10" required={!editing} placeholder={editing ? 'Leave blank to keep current password' : ''}/></label><fieldset className="compensation-picker"><legend>Staff compensation (ETB)</legend>{[['salary','Salary'],['rent','Rent'],['commission','Commission'],['allowance','Allowance']].map(([name,label]) => <label key={name}>{label}<input name={name} type="number" min="0" step="0.01" defaultValue={editing?.[name] ?? 0} required /></label>)}<small>These are staff terms. Record actual payments in Expenses when paid.</small></fieldset><fieldset className="permission-picker"><legend>Additional permissions</legend>{[['VIEW_REPORTS','Reports'],['VIEW_CUSTOMERS','Customer data'],['MANAGE_POS','Point of sale'],['VIEW_INVENTORY','Inventory'],['MANAGE_WEBSITE','Website']].map(([value,label]) => <label key={value}><input type="checkbox" name="permissions" value={value} defaultChecked={editing?.permissions?.includes(value) || false}/>{label}</label>)}</fieldset><div><button type="button" className="outline" onClick={closeForm}>Cancel</button><button className="primary">{editing ? 'Save changes' : 'Create account'}</button></div></form>}
     <div className="team-grid">{pageTeam.length ? pageTeam.map(({ id, email, name, role, permissions = [], salary = 0, rent = 0, commission = 0, allowance = 0, description }) => <article className="card team-member" key={id}><span className="avatar large">{name.split(' ').map((part) => part[0]).join('')}</span><div><h3>{name}</h3><p>{email}</p><small>{description}</small>{role !== 'Admin' && <div className="compensation-tags"><i>Salary {money(salary)}</i><i>Rent {money(rent)}</i><i>Commission {money(commission)}</i><i>Allowance {money(allowance)}</i></div>}{permissions.length > 0 && <div className="permission-tags">{permissions.map((permission) => <i key={permission}>{permission.replaceAll('_', ' ').toLowerCase()}</i>)}</div>}</div><span className="role-badge">{role}</span>{role !== 'Admin' && <div className="staff-actions"><button className="table-action" onClick={() => { setEditing({ id, email, name, role, permissions, salary, rent, commission, allowance }); setAdding(true); }}>Edit</button><button className="staff-remove" onClick={() => deactivateStaff(id, name)}>Deactivate</button></div>}</article>) : <p className="empty card list-empty">No team members match the current search and filter.</p>}</div>
     <div className="card"><Pagination page={teamPage} setPage={setTeamPage} totalItems={visibleTeam.length} pageSize={PAGE_SIZE}/></div></>;
 }
@@ -360,8 +360,7 @@ const fileToDataUrl = (file) => new Promise((resolve, reject) => {
 const socialPlatforms = ['Facebook', 'Instagram', 'TikTok', 'Telegram', 'YouTube', 'X', 'LinkedIn', 'WhatsApp'];
 const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
 
-export function WebsiteView({ role, banners = [], socialLinks = [], staffProfiles = [], blogPosts = [], createBanner, updateBanner, deleteBanner, reorderBanner, createSocialLink, updateSocialLink, deleteSocialLink, createStaffProfile, updateStaffProfile, deleteStaffProfile, createBlogPost, updateBlogPost, deleteBlogPost, reorderBlogPost }) {
-  const isAdmin = role === 'Admin';
+export function WebsiteView({ banners = [], socialLinks = [], staffProfiles = [], blogPosts = [], createBanner, updateBanner, deleteBanner, reorderBanner, createSocialLink, updateSocialLink, deleteSocialLink, createStaffProfile, updateStaffProfile, deleteStaffProfile, createBlogPost, updateBlogPost, deleteBlogPost, reorderBlogPost }) {
   const [addingBanner, setAddingBanner] = useState(false);
   const [editingBanner, setEditingBanner] = useState(null);
   const [savingBanner, setSavingBanner] = useState(false);
@@ -433,7 +432,7 @@ export function WebsiteView({ role, banners = [], socialLinks = [], staffProfile
   };
 
   return <>
-    <PageHead eyebrow="PUBLIC SITE" title="Website content"><span className="head-count">{isAdmin ? 'Manage banners, social links, repair tips, and the team showcase' : 'Manage promotional banners for the public site'}</span></PageHead>
+    <PageHead eyebrow="PUBLIC SITE" title="Website content"><span className="head-count">Manage banners, social links, repair tips, and the team showcase</span></PageHead>
 
     <section className="card table-card full-table website-section">
       <div className="panel-title"><div><h2>Promotional banners</h2><p>{banners.length} banner{banners.length === 1 ? '' : 's'} shown as a carousel on the public site</p></div><button className="primary" onClick={() => { setEditingBanner(null); setAddingBanner(true); }}>＋ Add banner</button></div>
@@ -444,20 +443,20 @@ export function WebsiteView({ role, banners = [], socialLinks = [], staffProfile
       </article>) : <p className="empty card list-empty">No banners yet — add one to show a promotion on the public site.</p>}</div>
     </section>
 
-    {isAdmin && <section className="card table-card full-table website-section">
+    <section className="card table-card full-table website-section">
       <div className="panel-title"><div><h2>Social media icons</h2><p>{socialLinks.length} link{socialLinks.length === 1 ? '' : 's'} shown in the public site footer</p></div><button className="primary" onClick={() => { setEditingSocial(null); setAddingSocial(true); }}>＋ Add link</button></div>
       <div className="table-scroll"><table><thead><tr><th>Platform</th><th>URL</th><th>Actions</th></tr></thead><tbody>{socialLinks.length ? socialLinks.map((link) => <tr key={link.id}><td><strong>{link.platform}</strong></td><td className="description-cell" title={link.url}>{link.url}</td><td><div className="expense-actions"><button onClick={() => { setEditingSocial(link); setAddingSocial(true); }}>✎ Edit</button><button className="delete" onClick={() => deleteSocialLink(link.id, link.platform)}>♲ Delete</button></div></td></tr>) : <tr><td colSpan="3" className="empty">No social links yet.</td></tr>}</tbody></table></div>
-    </section>}
+    </section>
 
-    {isAdmin && <section className="card table-card full-table website-section">
+    <section className="card table-card full-table website-section">
       <div className="panel-title"><div><h2>Team showcase</h2><p>{staffProfiles.length} profile{staffProfiles.length === 1 ? '' : 's'} shown in "Meet the team" on the public site</p></div><button className="primary" onClick={() => { setEditingStaff(null); setAddingStaff(true); }}>＋ Add team member</button></div>
       <div className="team-grid">{staffProfiles.length ? staffProfiles.map((profile) => <article className="card team-member" key={profile.id}>{profile.photoUrl ? <img className="staff-avatar-photo" src={`${apiBase}${profile.photoUrl}`} alt={profile.name}/> : <span className="avatar large">{profile.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>}<div><h3>{profile.name}</h3><p>{profile.role}</p>{profile.bio && <small>{profile.bio}</small>}</div><span className={`credit-badge ${profile.active ? 'enabled' : ''}`}>{profile.active ? 'Visible' : 'Hidden'}</span><div className="staff-actions"><button className="table-action" onClick={() => { setEditingStaff(profile); setAddingStaff(true); }}>Edit</button><button className="staff-remove" onClick={() => deleteStaffProfile(profile.id, profile.name)}>Delete</button></div></article>) : <p className="empty card list-empty">No team members added yet.</p>}</div>
-    </section>}
+    </section>
 
-    {isAdmin && <section className="card table-card full-table website-section">
+    <section className="card table-card full-table website-section">
       <div className="panel-title"><div><h2>Repair tips ("From the repair bench")</h2><p>{blogPosts.length} article{blogPosts.length === 1 ? '' : 's'} shown on the public site</p></div><button className="primary" onClick={() => { setEditingPost(null); setAddingPost(true); }}>＋ Add article</button></div>
       <div className="table-scroll"><table><thead><tr><th>Tag</th><th>Title</th><th>Summary</th><th>Status</th><th>Actions</th></tr></thead><tbody>{blogPosts.length ? blogPosts.map((post, index) => <tr key={post.id}><td><span className="category-badge">{post.tag}</span></td><td><strong>{post.title}</strong></td><td className="description-cell" title={post.summary}>{post.summary}</td><td><span className={`credit-badge ${post.active ? 'enabled' : ''}`}>{post.active ? 'Live' : 'Hidden'}</span></td><td><div className="expense-actions"><button disabled={index === 0} onClick={() => reorderBlogPost({ id: post.id, direction: 'up' })} aria-label="Move up">↑</button><button disabled={index === blogPosts.length - 1} onClick={() => reorderBlogPost({ id: post.id, direction: 'down' })} aria-label="Move down">↓</button><button onClick={() => { setEditingPost(post); setAddingPost(true); }}>✎ Edit</button><button className="delete" onClick={() => deleteBlogPost(post.id, post.title)}>♲ Delete</button></div></td></tr>) : <tr><td colSpan="5" className="empty">No repair tip articles yet.</td></tr>}</tbody></table></div>
-    </section>}
+    </section>
 
     {addingBanner && <div className="modal-backdrop"><form className="modal card banner-modal" onSubmit={submitBanner}>
       <div className="modal-head"><div><p>PUBLIC SITE</p><h2>{editingBanner ? '✎ Edit banner' : '＋ Add banner'}</h2><small>Shown as a rotating carousel on the customer website.</small></div><button type="button" onClick={closeBannerForm} disabled={savingBanner}>×</button></div>
@@ -472,7 +471,7 @@ export function WebsiteView({ role, banners = [], socialLinks = [], staffProfile
       <div className="modal-actions"><button type="button" className="outline" onClick={closeBannerForm} disabled={savingBanner}>Cancel</button><button className="primary" disabled={savingBanner}>{savingBanner ? 'Saving…' : editingBanner ? 'Save changes' : 'Add banner'}</button></div>
     </form></div>}
 
-    {isAdmin && addingSocial && <div className="modal-backdrop"><form className="modal card" onSubmit={submitSocial}>
+    {addingSocial && <div className="modal-backdrop"><form className="modal card" onSubmit={submitSocial}>
       <div className="modal-head"><div><p>PUBLIC SITE</p><h2>{editingSocial ? '✎ Edit social link' : '＋ Add social link'}</h2></div><button type="button" onClick={closeSocialForm} disabled={savingSocial}>×</button></div>
       <div className="form-grid">
         <label>Platform<select name="platform" required defaultValue={editingSocial?.platform || ''}><option value="" disabled>Select platform</option>{socialPlatforms.map((platform) => <option key={platform}>{platform}</option>)}</select></label>
@@ -481,7 +480,7 @@ export function WebsiteView({ role, banners = [], socialLinks = [], staffProfile
       <div className="modal-actions"><button type="button" className="outline" onClick={closeSocialForm} disabled={savingSocial}>Cancel</button><button className="primary" disabled={savingSocial}>{savingSocial ? 'Saving…' : editingSocial ? 'Save changes' : 'Add link'}</button></div>
     </form></div>}
 
-    {isAdmin && addingPost && <div className="modal-backdrop"><form className="modal card" onSubmit={submitPost}>
+    {addingPost && <div className="modal-backdrop"><form className="modal card" onSubmit={submitPost}>
       <div className="modal-head"><div><p>PUBLIC SITE</p><h2>{editingPost ? '✎ Edit repair tip' : '＋ Add repair tip'}</h2><small>Shown in "From the repair bench" on the customer website.</small></div><button type="button" onClick={closePostForm} disabled={savingPost}>×</button></div>
       <div className="form-grid">
         <label>Tag<input name="tag" required defaultValue={editingPost?.tag || ''} placeholder="e.g. BATTERY CARE"/></label>
@@ -493,7 +492,7 @@ export function WebsiteView({ role, banners = [], socialLinks = [], staffProfile
       <div className="modal-actions"><button type="button" className="outline" onClick={closePostForm} disabled={savingPost}>Cancel</button><button className="primary" disabled={savingPost}>{savingPost ? 'Saving…' : editingPost ? 'Save changes' : 'Add article'}</button></div>
     </form></div>}
 
-    {isAdmin && addingStaff && <div className="modal-backdrop"><form className="modal card" onSubmit={submitStaff}>
+    {addingStaff && <div className="modal-backdrop"><form className="modal card" onSubmit={submitStaff}>
       <div className="modal-head"><div><p>PUBLIC SITE</p><h2>{editingStaff ? '✎ Edit team member' : '＋ Add team member'}</h2><small>Shown in "Meet the team" on the customer website.</small></div><button type="button" onClick={closeStaffForm} disabled={savingStaff}>×</button></div>
       <div className="form-grid">
         <label>Name<input name="name" required defaultValue={editingStaff?.name || ''}/></label>
