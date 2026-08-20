@@ -79,6 +79,17 @@
   border-color: #000;
 }
 
+.receipt-device-entry + .receipt-device-entry {
+  margin-top: 4mm;
+  padding-top: 3mm;
+  border-top: 1px dashed #000;
+}
+
+.receipt-device-title {
+  font-size: 11px;
+  color: #000;
+}
+
 .receipt-grid .wide {
   grid-column: auto;
 }

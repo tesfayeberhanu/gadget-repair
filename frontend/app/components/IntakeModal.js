@@ -96,7 +96,7 @@ export default function IntakeModal({ customer = null, customers = [], close, su
         {devices.map((device, index) => <DeviceBlock key={device.key} device={device} index={index} total={devices.length} onBrandChange={(brand) => setDeviceBrand(index, brand)} onRemove={() => removeDevice(index)} />)}
         <button type="button" className="outline add-part add-device" onClick={addDevice}>＋ Add another device (customer brought in more than one phone)</button>
       </div>
-      <div className="modal-actions"><button type="button" className="outline" onClick={close} disabled={submitting}>Cancel</button><button className="primary" type="submit" disabled={submitting}>{submitting ? 'Creating ticket…' : devices.length > 1 ? `Create ${devices.length} tickets & receipts` : 'Create ticket & receipt'}</button></div>
+      <div className="modal-actions"><button type="button" className="outline" onClick={close} disabled={submitting}>Cancel</button><button className="primary" type="submit" disabled={submitting}>{submitting ? 'Creating ticket…' : devices.length > 1 ? `Create ticket for ${devices.length} devices` : 'Create ticket & receipt'}</button></div>
     </form>
   </div>;
 }
