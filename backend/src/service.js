@@ -11,7 +11,7 @@ const navigation = {
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
 const permissionNavigation = { VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website' };
-const allowedPermissions = Object.keys(permissionNavigation);
+const allowedPermissions = [...Object.keys(permissionNavigation), 'VIEW_DAILY_SALES'];
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup', PICKED_UP: 'Delivered' };
 const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', UNPAID: 'Unpaid', PARTIALLY_PAID: 'Partially Paid', REFUNDED: 'Refunded' };
@@ -547,10 +547,11 @@ export async function getWorkspace(role, actorId) {
   }, { dailyExpenses: 0, weeklyExpenses: 0, monthlyExpenses: 0, yearlyExpenses: 0 });
   const reportMetrics = { totalRevenue, cashCollected, accountsReceivable, totalExpenses, ...periodExpenses, netRevenue: totalRevenue - totalExpenses, sparePartsRevenue, accessoriesRevenue, maintenanceRevenue, retailRevenue, completedJobs: completedTickets.length, paidSalesRevenue: cashCollected };
   const hasReportsAccess = role === 'Admin' || actor.permissions.includes('VIEW_REPORTS');
+  const hasDailySalesAccess = hasReportsAccess || actor.permissions.includes('VIEW_DAILY_SALES');
   const dashboard = role === 'Technician'
     ? (hasReportsAccess ? { ...reportMetrics, assignedPending: technicianTickets.filter((ticket) => ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS'].includes(ticket.status)).length, inProgress: technicianTickets.filter((ticket) => ticket.status === 'COMPLETED').length, completedToday: technicianTickets.filter((ticket) => ticket.status === 'DELIVERED').length } : {})
     : role === 'Front Desk'
-      ? (hasReportsAccess ? { ...reportMetrics, intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, awaitingAssignment: tickets.filter((ticket) => ticket.status === 'PENDING' && !ticket.assignedTechId).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'DELIVERED').length, dailySales: cashCollectedToday } : {})
+      ? { ...(hasReportsAccess ? { ...reportMetrics, intakesToday: tickets.filter((ticket) => ticket.createdAt.toDateString() === new Date().toDateString()).length, awaitingAssignment: tickets.filter((ticket) => ticket.status === 'PENDING' && !ticket.assignedTechId).length, readyForPickup: tickets.filter((ticket) => ticket.status === 'DELIVERED').length } : {}), ...(hasDailySalesAccess ? { dailySales: cashCollectedToday } : {}) }
       : { ...reportMetrics, activeRepairs: active.length, completedThisMonth: tickets.filter((ticket) => ticket.status === 'DELIVERED').length, lowStock: parts.filter((part) => part.stockQty <= part.minimumStockQty).length };
 
   return {
