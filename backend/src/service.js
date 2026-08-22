@@ -4,9 +4,9 @@ import { createHash, randomBytes } from 'node:crypto';
 import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials } from './accounting.js';
 
 const navigation = {
-  Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website', 'Settings'],
-  Technician: ['Overview', 'Settings'],
-  'Front Desk': ['Overview', 'Settings'],
+  Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website'],
+  Technician: ['Overview'],
+  'Front Desk': ['Overview'],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };

@@ -23,8 +23,8 @@
   .side-nav button b { display: inline !important; }
   .nav-icon { width: 19px; font-size: 20px; }
   .sidebar-foot { margin: auto 0 0; padding-top: 7px; border-top: 1px solid #17416d; border-left: 0; }
-  .sidebar-foot > button { width: 100%; min-height: 46px; margin: 0; padding: 8px 13px; justify-content: flex-start; font-size: 16px; }
-  .sidebar-foot > button span { display: inline; }
+  .sidebar-actions button { min-height: 46px; margin: 0; font-size: 14px; }
+  .sidebar-actions button span { display: inline; }
   .user-card { display: flex; }
   .user-card div { display: grid; }
   .main-area { width: 100%; margin-left: 0; }
