@@ -320,7 +320,16 @@ export function ReportsView({ dashboard }) {
     () => '',
   );
   return <><PageHead eyebrow="ADMIN ONLY" title="Reports & analytics"><span className="head-count">Current reporting period</span></PageHead>
-    <div className="metric-grid three"><Metric icon="Br" tone="green" label="Revenue" value={money(dashboard.totalRevenue)} meta="Full finalized invoice value"/><Metric icon="−" tone="amber" label="Total expenses" value={money(dashboard.totalExpenses)} meta="Recorded operating costs"/><Metric icon="Br" tone="violet" label="Net revenue" value={money(dashboard.netRevenue)} meta="Revenue − expenses"/></div>
+    <div className="metric-grid">
+      <Metric icon="Br" tone="green" label="Revenue" value={money(dashboard.totalRevenue)} meta="Full finalized invoice value"/>
+      <Metric icon="◇" tone="blue" label="Cash collected" value={money(dashboard.cashCollected)} meta="Valid payments received"/>
+      <Metric icon="⌛" tone="amber" label="Accounts receivable" value={money(dashboard.accountsReceivable)} meta="Outstanding customer balances"/>
+      <Metric icon="Br" tone="violet" label="Net revenue" value={money(dashboard.netRevenue)} meta="Revenue − expenses"/>
+      <Metric icon="−" tone="amber" label="Total expenses" value={money(dashboard.totalExpenses)} meta="Recorded operating costs"/>
+      <Metric icon="▥" tone="blue" label="Active repairs" value={dashboard.activeRepairs ?? 0} meta="Current repair workload"/>
+      <Metric icon="✓" tone="green" label="Completed jobs" value={dashboard.completedJobs ?? 0} meta="Finalized repair jobs"/>
+      <Metric icon="!" tone="violet" label="Low stock items" value={dashboard.lowStock ?? 0} meta="At or below reorder level"/>
+    </div>
     <RevenueCard dashboard={dashboard}/>
     <div className="toolbar card list-toolbar"><SearchBox value={reportSearch} onChange={setReportSearch} placeholder="Search metric name" label="Search report metrics"/><ResultCount shown={visibleRows.length} total={rows.length} noun="metric"/><select value={reportGroupFilter} onChange={(event) => setReportGroupFilter(event.target.value)} aria-label="Filter metrics by group"><option>All</option><option>Revenue</option><option>Collections</option><option>Expenses</option></select><select value={reportSort} onChange={(event) => setReportSort(event.target.value)} aria-label="Sort metrics"><option value="group">Grouped</option><option value="label">Name A–Z</option><option value="amount-high">Amount high–low</option><option value="amount-low">Amount low–high</option></select></div>
     <section className="card table-card full-table"><div className="table-scroll"><table><thead><tr><th>Metric</th><th>Group</th><th>Value</th><th>Detail</th></tr></thead><tbody>{visibleRows.length ? visibleRows.map((row) => <tr key={row.label}><td><strong>{row.label}</strong></td><td><span className="category-badge">{row.group}</span></td><td><strong>{money(row.value)}</strong></td><td className="description-cell">{row.meta}</td></tr>) : <tr><td colSpan="4" className="empty">No metrics match the current search and filter.</td></tr>}</tbody></table></div></section>
