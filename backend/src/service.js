@@ -669,11 +669,12 @@ export async function deactivateStaff(role, actorId, id) {
 }
 
 export async function createInventoryItem(role, actorId, input) {
-  requireRole(role, ['Admin']);
+  requireRole(role, ROLES);
   const data = inventoryInput(input);
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
     const sku = `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     const part = await tx.part.create({ data: { sku, ...data, minimumStockQty: 5 } });
     if (part.stockQty > 0) await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: 'IN', quantity: part.stockQty, unitPrice: part.costPrice } });
@@ -696,11 +697,12 @@ function inventoryInput(input) {
 }
 
 export async function updateInventoryItem(role, actorId, input) {
-  requireRole(role, ['Admin']);
+  requireRole(role, ROLES);
   if (!input.id) throw new Error('NOT_FOUND');
   const data = inventoryInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
     const existing = await tx.part.findUnique({ where: { id: input.id } });
     if (!existing) throw new Error('NOT_FOUND');
     const part = await tx.part.update({ where: { id: input.id }, data });
@@ -712,10 +714,11 @@ export async function updateInventoryItem(role, actorId, input) {
 }
 
 export async function deleteInventoryItem(role, actorId, id) {
-  requireRole(role, ['Admin']);
+  requireRole(role, ROLES);
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
     const existing = await tx.part.findUnique({ where: { id }, include: { _count: { select: { ticketParts: true } } } });
     if (!existing) throw new Error('NOT_FOUND');
     if (existing._count.ticketParts > 0) throw new Error('INVENTORY_IN_USE');
@@ -957,7 +960,6 @@ export async function updateRepairProgress(role, actorId, input) {
       const current = partRequests.get(partId) || { quantity: 0, unitPrice };
       partRequests.set(partId, { quantity: current.quantity + quantity, unitPrice: unitPrice ?? current.unitPrice });
     }
-    if (progress >= 75 && ticket.usedParts.length === 0 && partRequests.size === 0) throw new Error('REPAIR_PART_REQUIRED');
     for (const [partId, request] of partRequests) {
       const { quantity } = request;
       const deducted = await tx.part.updateMany({ where: { id: partId, stockQty: { gte: quantity } }, data: { stockQty: { decrement: quantity } } });
