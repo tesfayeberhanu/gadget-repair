@@ -12,6 +12,8 @@
 .status.ready-for-pickup { background: #e6f8ef; color: #168c5c; }
 .progress-cell b { font-size: 10px; color: #3f5368; }
 .repair-detail-modal { width: min(980px, 100%); max-height: calc(100vh - 40px); overflow-y: auto; }
+.detail-print-actions { flex-wrap: wrap; margin-bottom: 18px; }
+.detail-print-actions small { color: var(--muted); }
 .repair-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 .repair-detail-panel { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .repair-detail-panel h3 { margin: 0; padding: 14px 17px; background: #07233f; color: white; font-size: 14px; }

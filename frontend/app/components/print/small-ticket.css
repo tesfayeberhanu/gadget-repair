@@ -1,0 +1,70 @@
+.small-ticket {
+  box-sizing: border-box;
+  width: min(80mm, 100%);
+  margin: 0 auto;
+  padding: 4mm;
+  color: #000;
+  background: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  text-align: center;
+}
+
+.small-ticket h1 {
+  margin: 0 0 4mm;
+  font-size: 22px;
+  letter-spacing: .03em;
+}
+
+.small-ticket section {
+  margin: 0 0 3.5mm;
+}
+
+.small-ticket small {
+  display: block;
+  margin-bottom: .5mm;
+  color: #000;
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.small-ticket strong {
+  display: block;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.small-ticket .receipt-barcode.real-barcode {
+  width: 74mm;
+  height: 30mm;
+  max-width: 100%;
+  margin: 2mm auto;
+  fill: #000;
+}
+
+@page {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  html,
+  body {
+    width: 80mm;
+    margin: 0;
+    padding: 0;
+    background: #fff;
+  }
+
+  .small-ticket {
+    width: 80mm;
+    max-width: 80mm;
+    margin: 0;
+    padding: 4mm;
+  }
+
+  .small-ticket,
+  .small-ticket * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

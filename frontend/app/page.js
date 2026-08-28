@@ -9,6 +9,7 @@ import LoginScreen from './components/LoginScreen';
 import SettingsView from './components/SettingsView';
 import { AppointmentsView, RepairsView, InventoryView, ExpensesView, SalesView, CustomersView, ReportsView, TeamView, WebsiteView } from './components/ModuleViews';
 import { matchesSearch } from './utils/listTools.mjs';
+import { printBoth } from './utils/printJobs';
 
 async function apiRequest(path, token, options = {}) {
   const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:4000';
@@ -108,8 +109,18 @@ export default function HomePage() {
         const ticket = await apiRequest('/api/repairs', token, { method: 'POST', body: JSON.stringify(form) });
         tickets.push(ticket);
       }
-      sessionStorage.setItem('ifixlab_print_ticket', JSON.stringify({ tickets: tickets.map((ticket) => ({ ...ticket, createdAt: new Date().toISOString() })) }));
-      window.location.assign('/print-ticket');
+      const printedTickets = tickets.map((ticket) => ({ ...ticket, createdAt: new Date().toISOString() }));
+      sessionStorage.setItem('ifixlab_print_ticket', JSON.stringify({ tickets: printedTickets }));
+      try {
+        await printBoth(printedTickets);
+        closeIntake();
+        await loadWorkspace();
+        notify(`Job ticket${printedTickets.length === 1 ? '' : 's'} and receipt sent to the printers`);
+      } catch {
+        // QZ Tray isn't set up on this computer, or a printer failed — the repair is
+        // already saved either way, so fall back to the manual browser print page.
+        window.location.assign('/print-ticket');
+      }
       return true;
     }
     catch (requestError) {
