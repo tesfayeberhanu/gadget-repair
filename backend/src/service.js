@@ -1,7 +1,7 @@
 import { prisma } from './prisma.js';
 import { createSession, hashPassword, requireRole, ROLES, verifyPassword } from './auth.js';
 import { createHash, randomBytes } from 'node:crypto';
-import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials } from './accounting.js';
+import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials, repairRevenueBreakdown } from './accounting.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website'],
@@ -18,7 +18,6 @@ const paymentLabel = { PAID: 'Paid', PENDING: 'Pending', UNPAID: 'Unpaid', PARTI
 const methodLabel = { CASH: 'Cash', CARD: 'Card', DIGITAL_TRANSFER: 'Transfer' };
 const paymentMethodValue = { CASH: 'CASH', Cash: 'CASH', CARD: 'CARD', Card: 'CARD', DIGITAL_TRANSFER: 'DIGITAL_TRANSFER', Transfer: 'DIGITAL_TRANSFER' };
 const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
-const accessoryCategories = new Set(['Accessory', 'Cable']);
 const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : progress >= 75 ? 'COMPLETED' : progress >= 50 ? 'WAITING_FOR_PARTS' : 'IN_PROGRESS';
 const repairInclude = { customer: true, assignedTech: { select: { name: true } }, usedParts: { include: { part: true } }, sales: { include: { payments: true }, orderBy: { createdAt: 'desc' } }, delivery: { include: { deliveredBy: { select: { name: true } } } } };
 const invoiceForTicket = (ticket) => (ticket.sales || []).find((sale) => sale.finalizationKey === `repair:${ticket.id}`) || ticket.sales?.[0] || null;
@@ -514,17 +513,16 @@ export async function getWorkspace(role, actorId) {
   const technicianTickets = role === 'Technician' ? tickets.filter((ticket) => ticket.assignedTechId === actor.id) : [];
   const { revenue: totalRevenue, cashCollected, accountsReceivable } = accountingTotals(sales);
   const revenueTickets = tickets.filter((ticket) => { const sale = invoiceForTicket(ticket); return sale?.status === 'FINALIZED' && sale.revenueRecognizedAt && !sale.revenueReversedAt; });
-  const partRevenue = revenueTickets.reduce((totals, ticket) => {
-    for (const item of ticket.usedParts) {
-      const key = accessoryCategories.has(item.part.category) ? 'accessories' : 'spareParts';
-      totals[key] += item.quantity * Number(item.unitPrice);
-    }
+  const repairRevenue = revenueTickets.reduce((totals, ticket) => {
+    const sale = invoiceForTicket(ticket);
+    const breakdown = repairRevenueBreakdown({ invoiceTotal: sale.recognizedRevenue ?? sale.totalAmount, serviceCharge: ticket.serviceCharge, usedParts: ticket.usedParts });
+    totals.sparePartsRevenue += breakdown.sparePartsRevenue;
+    totals.accessoriesRevenue += breakdown.accessoriesRevenue;
+    totals.maintenanceRevenue += breakdown.maintenanceRevenue;
     return totals;
-  }, { spareParts: 0, accessories: 0 });
-  const sparePartsRevenue = partRevenue.spareParts;
-  const accessoriesRevenue = partRevenue.accessories;
+  }, { sparePartsRevenue: 0, accessoriesRevenue: 0, maintenanceRevenue: 0 });
+  const { sparePartsRevenue, accessoriesRevenue, maintenanceRevenue } = repairRevenue;
   const completedTickets = revenueTickets;
-  const maintenanceRevenue = completedTickets.reduce((sum, ticket) => sum + Number(ticket.serviceCharge || 0), 0);
   const retailRevenue = totalRevenue - sparePartsRevenue - accessoriesRevenue - maintenanceRevenue;
   const cashCollectedToday = sales.flatMap((sale) => sale.payments || []).filter((payment) => !payment.reversedAt && payment.createdAt.toDateString() === new Date().toDateString()).reduce((sum, payment) => sum + Number(payment.amount), 0);
   const totalExpenses = expenses.reduce((sum, expense) => sum + Number(expense.amount), 0);
@@ -983,9 +981,7 @@ export async function updateRepairProgress(role, actorId, input) {
     for (const item of finalParts) {
       await tx.inventoryMovement.updateMany({ where: { ticketId: ticket.id, partId: item.partId, direction: 'OUT' }, data: { unitPrice: item.unitPrice } });
     }
-    const finalPrice = progress === 100
-      ? finalParts.reduce((sum, item) => sum + item.quantity * Number(item.unitPrice), hasServiceCharge ? serviceCharge : Number(ticket.serviceCharge))
-      : null;
+    const finalPrice = progress === 100 ? (hasServiceCharge ? serviceCharge : Number(ticket.serviceCharge)) : null;
     if (progress === 100) {
       const now = new Date();
       const existingSale = invoiceForTicket(ticket);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials } from '../src/accounting.js';
+import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials, repairRevenueBreakdown } from '../src/accounting.js';
 
 const finalizedInvoice = (payments = [], overrides = {}) => ({
   id: 'invoice-1',
@@ -76,4 +76,17 @@ test('delivery eligibility follows the current customer until delivery and the s
 test('payment reversals reduce collections and restore the invoice balance without changing revenue', () => {
   const invoice = finalizedInvoice([{ amount: 100, reversedAt: new Date('2026-08-13T12:00:00Z') }]);
   assert.deepEqual(accountingTotals([invoice]), { revenue: 100, cashCollected: 0, accountsReceivable: 100 });
+});
+
+test('parts included in maintenance do not create extra parts revenue', () => {
+  const usedParts = [
+    { quantity: 1, unitPrice: 40, part: { category: 'Spare Part' } },
+    { quantity: 1, unitPrice: 20, part: { category: 'Accessory' } },
+  ];
+  assert.deepEqual(repairRevenueBreakdown({ invoiceTotal: 100, serviceCharge: 100, usedParts }), {
+    sparePartsRevenue: 0, accessoriesRevenue: 0, maintenanceRevenue: 100,
+  });
+  assert.deepEqual(repairRevenueBreakdown({ invoiceTotal: 160, serviceCharge: 100, usedParts }), {
+    sparePartsRevenue: 40, accessoriesRevenue: 20, maintenanceRevenue: 100,
+  });
 });

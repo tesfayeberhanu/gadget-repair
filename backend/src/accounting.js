@@ -49,3 +49,22 @@ export function accountingTotals(sales) {
     return totals;
   }, { revenue: 0, cashCollected: 0, accountsReceivable: 0 });
 }
+
+export function repairRevenueBreakdown({ invoiceTotal, serviceCharge, usedParts = [] }) {
+  const total = roundMoney(invoiceTotal);
+  const parts = usedParts.map((item) => ({
+    value: roundMoney(item.quantity * Number(item.unitPrice)),
+    accessory: ['Accessory', 'Cable'].includes(item.part.category),
+  }));
+  const partsValue = roundMoney(parts.reduce((sum, item) => sum + item.value, 0));
+  // Older invoices billed parts separately. New invoices include them in the
+  // maintenance charge, so only the difference can count as parts revenue.
+  const billedParts = partsValue > 0 ? roundMoney(Math.min(partsValue, Math.max(0, total - Number(serviceCharge || 0)))) : 0;
+  const accessoryValue = parts.reduce((sum, item) => sum + (item.accessory ? item.value : 0), 0);
+  const accessoriesRevenue = partsValue > 0 ? roundMoney(billedParts * accessoryValue / partsValue) : 0;
+  return {
+    sparePartsRevenue: roundMoney(billedParts - accessoriesRevenue),
+    accessoriesRevenue,
+    maintenanceRevenue: roundMoney(total - billedParts),
+  };
+}
