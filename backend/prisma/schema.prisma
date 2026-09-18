@@ -150,6 +150,7 @@ model Part {
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   ticketParts        TicketPart[]
+  saleItems          SaleItem[]
   inventoryMovements InventoryMovement[]
 }
 
@@ -159,6 +160,8 @@ model InventoryMovement {
   part      Part?         @relation(fields: [partId], references: [id], onDelete: SetNull)
   ticketId  String?
   ticket    RepairTicket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  saleId    String?
+  sale      Sale?         @relation(fields: [saleId], references: [id], onDelete: SetNull)
   category  String
   direction String
   quantity  Int
@@ -167,6 +170,7 @@ model InventoryMovement {
 
   @@index([partId, direction])
   @@index([ticketId])
+  @@index([saleId])
   @@index([createdAt])
 }
 
@@ -201,12 +205,31 @@ model Sale {
   processedBy         String
   user                User           @relation(fields: [processedBy], references: [id])
   payments            Payment[]
+  items               SaleItem[]
+  inventoryMovements  InventoryMovement[]
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
 
   @@index([customerId])
   @@index([ticketId])
   @@index([status, revenueRecognizedAt])
+}
+
+model SaleItem {
+  id        String   @id @default(uuid())
+  saleId    String
+  sale      Sale     @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  partId    String?
+  part      Part?    @relation(fields: [partId], references: [id], onDelete: SetNull)
+  sku       String
+  name      String
+  category  String
+  quantity  Int
+  unitPrice Decimal  @db.Decimal(10, 2)
+  unitCost  Decimal  @db.Decimal(10, 2)
+
+  @@unique([saleId, sku])
+  @@index([partId])
 }
 
 model Payment {

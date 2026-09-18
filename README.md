@@ -69,3 +69,16 @@ repair mutations to the standalone backend. Business rules, role filtering,
 dashboard calculations, status transitions, Prisma access, and audit events live
 exclusively under `backend/`. Staff authentication uses signed, expiring bearer
 sessions. Receipt delivery remains a future production integration.
+
+## Accessory sales
+
+An admin can grant a Front Desk account the **Point of sale and accessory sales**
+permission in Team. Accessories and cables are sold from Point of Sale by SKU.
+The cashier enters a selling price for every item at checkout; the inventory
+price does not fill it in. Checkout records a paid invoice and stock movements
+together, so an out-of-stock item cannot be sold.
+
+When adding an accessory to Inventory, enter its buying cost and optionally its
+SKU (otherwise one is generated). Use **Receive stock** for later deliveries and
+enter that delivery's buying cost. The latest buying cost is kept on the item,
+while each stock receipt records the cost entered for that delivery.

@@ -1,0 +1,24 @@
+.accessory-sale-modal { width: min(760px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.accessory-sale-modal .modal-head small { display: block; color: var(--muted); margin-top: 6px; }
+.accessory-sku-entry { display: flex; align-items: end; gap: 10px; }
+.accessory-sku-entry label, .accessory-sale-bottom label { display: grid; gap: 7px; font-size: 11px; font-weight: 700; }
+.accessory-sku-entry label { flex: 1; }
+.accessory-sku-entry input, .accessory-cart-line input, .accessory-sale-bottom select { width: 100%; border: 1px solid #d7e1e8; border-radius: 7px; padding: 10px; background: #fff; }
+.accessory-cart { margin-top: 22px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.accessory-cart-head, .accessory-cart-line { display: grid; grid-template-columns: minmax(150px, 1fr) 78px 130px 32px; gap: 10px; align-items: center; padding: 10px 12px; }
+.accessory-cart-head { background: #f7fbfe; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.accessory-cart-line + .accessory-cart-line { border-top: 1px solid var(--line); }
+.accessory-cart-line strong, .accessory-cart-line small { display: block; }
+.accessory-cart-line strong { font-size: 12px; }
+.accessory-cart-line small { color: var(--muted); font-size: 10px; margin-top: 3px; }
+.accessory-cart-line button { border: 0; background: #fff0f0; color: #c43b3b; border-radius: 6px; height: 36px; font-size: 18px; }
+.accessory-sale-bottom { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-top: 20px; }
+.accessory-sale-bottom > div { text-align: right; }
+.accessory-sale-bottom small { display: block; color: var(--muted); font-size: 10px; }
+.accessory-sale-bottom strong { display: block; color: #147a39; font-size: 23px; }
+.accessory-sale-error { color: #bd3030; font-size: 12px; margin: 14px 0 0; }
+@media (max-width: 600px) {
+  .accessory-sku-entry { align-items: stretch; flex-direction: column; }
+  .accessory-cart { overflow-x: auto; }
+  .accessory-cart-head, .accessory-cart-line { min-width: 540px; }
+}

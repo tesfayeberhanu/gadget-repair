@@ -2,6 +2,7 @@ import { prisma } from './prisma.js';
 import { createSession, hashPassword, requireRole, ROLES, verifyPassword } from './auth.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials, repairRevenueBreakdown } from './accounting.js';
+import { accessoryCategories, accessoryRevenueFromSales, matchesAccessorySale, prepareAccessorySale } from './accessory-sale.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website'],
@@ -20,6 +21,7 @@ const paymentMethodValue = { CASH: 'CASH', Cash: 'CASH', CARD: 'CARD', Card: 'CA
 const appointmentLabel = { REQUESTED: 'Requested', CONFIRMED: 'Approved', CANCELLED: 'Rejected' };
 const repairStatusForProgress = (progress) => progress >= 100 ? 'DELIVERED' : progress >= 75 ? 'COMPLETED' : progress >= 50 ? 'WAITING_FOR_PARTS' : 'IN_PROGRESS';
 const repairInclude = { customer: true, assignedTech: { select: { name: true } }, usedParts: { include: { part: true } }, sales: { include: { payments: true }, orderBy: { createdAt: 'desc' } }, delivery: { include: { deliveredBy: { select: { name: true } } } } };
+const saleInclude = { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } }, items: true };
 const invoiceForTicket = (ticket) => (ticket.sales || []).find((sale) => sale.finalizationKey === `repair:${ticket.id}`) || ticket.sales?.[0] || null;
 
 function serializeRepair(ticket, role, actorId = null) {
@@ -76,7 +78,9 @@ function serializeSale(sale) {
   const financials = invoiceFinancials(sale);
   const displayPaymentStatus = sale.paymentStatus === 'REFUNDED' ? 'REFUNDED' : financials.paymentStatus;
   const payments = (sale.payments || []).map((payment) => ({ id: payment.id, amount: Number(payment.amount), method: methodLabel[payment.method] || payment.method, createdAt: payment.createdAt, reversed: Boolean(payment.reversedAt), reversedAt: payment.reversedAt, reversalReason: payment.reversalReason }));
-  return { id: `#SL-${sale.id.slice(0, 6).toUpperCase()}`, recordId: sale.id, customerId: sale.customerId, customer: sale.customer?.name || sale.ticket?.customerName || 'Retail customer', item: sale.ticket ? `${sale.ticket.deviceModel} repair` : 'Retail sale', method: sale.paymentMethod ? methodLabel[sale.paymentMethod] : 'No payment yet', amount: financials.invoiceTotal, invoiceTotal: financials.invoiceTotal, amountPaid: financials.amountPaid, balanceDue: financials.balanceDue, status: paymentLabel[displayPaymentStatus], invoiceStatus: sale.status, isCreditSale: Boolean(sale.isCreditSale), finalizedAt: sale.finalizedAt, createdAt: sale.createdAt, payments };
+  const items = (sale.items || []).map((item) => ({ sku: item.sku, name: item.name, category: item.category, quantity: item.quantity, unitPrice: Number(item.unitPrice) }));
+  const item = sale.ticket ? `${sale.ticket.deviceModel} repair` : items.length ? items.map((line) => `${line.name} ×${line.quantity}`).join(', ') : 'Retail sale';
+  return { id: `#SL-${sale.id.slice(0, 6).toUpperCase()}`, recordId: sale.id, customerId: sale.customerId, customer: sale.customer?.name || sale.ticket?.customerName || 'Retail customer', item, items, method: sale.paymentMethod ? methodLabel[sale.paymentMethod] : 'No payment yet', amount: financials.invoiceTotal, invoiceTotal: financials.invoiceTotal, amountPaid: financials.amountPaid, balanceDue: financials.balanceDue, status: paymentLabel[displayPaymentStatus], invoiceStatus: sale.status, isCreditSale: Boolean(sale.isCreditSale), finalizedAt: sale.finalizedAt, createdAt: sale.createdAt, payments };
 }
 
 function serializeCustomer(customer) {
@@ -484,9 +488,9 @@ export async function getWorkspace(role, actorId) {
   const [tickets, parts, sales, customers, team, appointments, technicians, inventoryMovements, expenses, banners, socialLinks, staffProfiles, blogPosts] = await Promise.all([
     prisma.repairTicket.findMany({ include: repairInclude, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
-    role === 'Admin' || actor.permissions.includes('MANAGE_POS') || actor.permissions.includes('VIEW_REPORTS') || actor.permissions.includes('VIEW_DAILY_SALES') ? prisma.sale.findMany({ include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } }) : [],
+    role === 'Admin' || actor.permissions.includes('MANAGE_POS') || actor.permissions.includes('VIEW_REPORTS') || actor.permissions.includes('VIEW_DAILY_SALES') ? prisma.sale.findMany({ include: saleInclude, orderBy: { createdAt: 'desc' } }) : [],
     role === 'Admin' || actor.permissions.includes('VIEW_CUSTOMERS')
-      ? prisma.customer.findMany({ include: { _count: { select: { repairs: true } }, sales: { include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } } }, orderBy: { name: 'asc' } })
+      ? prisma.customer.findMany({ include: { _count: { select: { repairs: true } }, sales: { include: saleInclude, orderBy: { createdAt: 'desc' } } }, orderBy: { name: 'asc' } })
       : [],
     role === 'Admin' ? prisma.user.findMany({ where: { active: true }, select: { id: true, email: true, name: true, role: true, permissions: true, salary: true, rent: true, commission: true, allowance: true }, orderBy: { createdAt: 'asc' } }) : [],
     role === 'Admin' || actor.permissions.includes('MANAGE_APPOINTMENTS') ? prisma.appointment.findMany({ orderBy: { preferredDate: 'asc' }, take: 100 }) : [],
@@ -521,7 +525,10 @@ export async function getWorkspace(role, actorId) {
     totals.maintenanceRevenue += breakdown.maintenanceRevenue;
     return totals;
   }, { sparePartsRevenue: 0, accessoriesRevenue: 0, maintenanceRevenue: 0 });
-  const { sparePartsRevenue, accessoriesRevenue, maintenanceRevenue } = repairRevenue;
+  const retailAccessoriesRevenue = accessoryRevenueFromSales(sales);
+  const sparePartsRevenue = repairRevenue.sparePartsRevenue;
+  const accessoriesRevenue = repairRevenue.accessoriesRevenue + retailAccessoriesRevenue;
+  const maintenanceRevenue = repairRevenue.maintenanceRevenue;
   const completedTickets = revenueTickets;
   const retailRevenue = totalRevenue - sparePartsRevenue - accessoriesRevenue - maintenanceRevenue;
   const cashCollectedToday = sales.flatMap((sale) => sale.payments || []).filter((payment) => !payment.reversedAt && payment.createdAt.toDateString() === new Date().toDateString()).reduce((sum, payment) => sum + Number(payment.amount), 0);
@@ -669,11 +676,14 @@ export async function deactivateStaff(role, actorId, id) {
 export async function createInventoryItem(role, actorId, input) {
   requireRole(role, ROLES);
   const data = inventoryInput(input);
+  const requestedSku = String(input.sku || '').trim().toUpperCase();
+  if (requestedSku && !/^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(requestedSku)) throw new Error('INVALID_INVENTORY_ITEM');
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
     if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
-    const sku = `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    const sku = requestedSku || `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+    if (await tx.part.findUnique({ where: { sku } })) throw new Error('INVENTORY_SKU_EXISTS');
     const part = await tx.part.create({ data: { sku, ...data, minimumStockQty: 5 } });
     if (part.stockQty > 0) await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: 'IN', quantity: part.stockQty, unitPrice: part.costPrice } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.created', entity: 'Part', entityId: part.id } });
@@ -686,12 +696,35 @@ function inventoryInput(input) {
   const category = String(input.category || '').trim();
   const description = String(input.description || '').trim() || null;
   const stockQty = Number(input.quantity);
-  const costPrice = Number(input.buyingPrice ?? input.unitPrice);
-  const retailPrice = Number(input.sellingPrice ?? input.unitPrice);
+  const buyingPrice = String(input.buyingPrice ?? input.unitPrice ?? '').trim();
+  const sellingPrice = String(input.sellingPrice ?? input.unitPrice ?? '').trim();
+  const costPrice = Number(buyingPrice);
   const categories = ['Screen', 'Battery', 'Accessory', 'Cable', 'Camera', 'Part', 'Other'];
-  if (!name || !categories.includes(category) || input.quantity === '' || input.buyingPrice === '' || input.sellingPrice === ''
+  const retailPrice = accessoryCategories.has(category) ? 0 : Number(sellingPrice);
+  if (!name || !categories.includes(category) || input.quantity === '' || !/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(buyingPrice)
+    || (!accessoryCategories.has(category) && !/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(sellingPrice))
     || !Number.isInteger(stockQty) || stockQty < 0 || !Number.isFinite(costPrice) || costPrice < 0 || !Number.isFinite(retailPrice) || retailPrice < 0) throw new Error('INVALID_INVENTORY_ITEM');
   return { name, category, description, stockQty, costPrice, retailPrice };
+}
+
+export async function receiveInventoryStock(role, actorId, input) {
+  requireRole(role, ROLES);
+  const sku = String(input.sku || '').trim().toUpperCase();
+  const quantity = Number(input.quantity);
+  const priceInput = String(input.buyingPrice ?? '').trim();
+  const buyingPrice = Number(priceInput);
+  if (!sku || !Number.isInteger(quantity) || quantity < 1 || !/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(priceInput)
+    || !Number.isFinite(buyingPrice) || buyingPrice < 0) throw new Error('INVALID_STOCK_RECEIPT');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    const part = await tx.part.findUnique({ where: { sku } });
+    if (!part) throw new Error('NOT_FOUND');
+    const updated = await tx.part.update({ where: { id: part.id }, data: { stockQty: { increment: quantity }, costPrice: buyingPrice } });
+    await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: 'IN', quantity, unitPrice: buyingPrice } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.received', entity: 'Part', entityId: part.id } });
+    return serializePart(updated, role);
+  });
 }
 
 export async function updateInventoryItem(role, actorId, input) {
@@ -1056,6 +1089,56 @@ export async function confirmDelivery(role, actorId, input) {
   }, { isolationLevel: 'Serializable' });
 }
 
+export async function createAccessorySale(role, actorId, input) {
+  requireRole(role, ['Admin', 'Front Desk']);
+  const prepared = prepareAccessorySale(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('MANAGE_POS')) throw new Error('FORBIDDEN');
+    const finalizationKey = `accessory:${prepared.idempotencyKey}`;
+    const existing = await tx.sale.findUnique({ where: { finalizationKey }, include: saleInclude });
+    if (existing) {
+      if (!matchesAccessorySale(existing, prepared)) throw new Error('IDEMPOTENCY_CONFLICT');
+      return serializeSale(existing);
+    }
+
+    const stock = [];
+    for (const line of prepared.items) {
+      const part = await tx.part.findUnique({ where: { sku: line.sku } });
+      if (!part || !accessoryCategories.has(part.category)) throw new Error('ACCESSORY_NOT_FOUND');
+      const deducted = await tx.part.updateMany({ where: { id: part.id, stockQty: { gte: line.quantity } }, data: { stockQty: { decrement: line.quantity } } });
+      if (deducted.count !== 1) throw new Error('INSUFFICIENT_PART_STOCK');
+      stock.push({ part, ...line });
+    }
+
+    const now = new Date();
+    const sale = await tx.sale.create({ data: {
+      finalizationKey,
+      totalAmount: prepared.totalAmount,
+      recognizedRevenue: prepared.totalAmount,
+      status: 'FINALIZED',
+      finalizedAt: now,
+      revenueRecognizedAt: now,
+      paymentStatus: 'PAID',
+      paymentMethod: prepared.paymentMethod,
+      processedBy: actor.id,
+    } });
+    await tx.saleItem.createMany({ data: stock.map(({ part, sku, quantity, unitPrice }) => ({
+      saleId: sale.id, partId: part.id, sku, name: part.name, category: part.category,
+      quantity, unitPrice, unitCost: part.costPrice,
+    })) });
+    await tx.inventoryMovement.createMany({ data: stock.map(({ part, quantity, unitPrice }) => ({
+      saleId: sale.id, partId: part.id, category: part.category, direction: 'OUT', quantity, unitPrice,
+    })) });
+    await tx.payment.create({ data: {
+      saleId: sale.id, amount: prepared.totalAmount, method: prepared.paymentMethod,
+      idempotencyKey: finalizationKey, processedBy: actor.id,
+    } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'accessory.sale_created', entity: 'Sale', entityId: sale.id } });
+    return serializeSale(await tx.sale.findUnique({ where: { id: sale.id }, include: saleInclude }));
+  }, { isolationLevel: 'Serializable' });
+}
+
 async function addPaymentInTransaction(tx, actor, sale, input) {
   const amount = Number(input.amount ?? input.paymentAmount);
   const method = paymentMethodValue[input.method ?? input.paymentMethod];
@@ -1086,7 +1169,7 @@ export async function recordInvoicePayment(role, actorId, input) {
     const sale = await tx.sale.findUnique({ where: { id: input.saleId }, include: { payments: true } });
     if (!sale) throw new Error('NOT_FOUND');
     await addPaymentInTransaction(tx, actor, sale, input);
-    return serializeSale(await tx.sale.findUnique({ where: { id: sale.id }, include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } } }));
+    return serializeSale(await tx.sale.findUnique({ where: { id: sale.id }, include: saleInclude }));
   }, { isolationLevel: 'Serializable' });
 }
 
@@ -1120,6 +1203,6 @@ export async function updateSaleAccounting(role, actorId, input) {
         await tx.auditLog.create({ data: { userId: actor.id, action: 'invoice.payment_reversed', entity: 'Payment', entityId: payment.id } });
       }
     }
-    return serializeSale(await tx.sale.findUnique({ where: { id: sale.id }, include: { customer: true, ticket: { select: { customerName: true, deviceModel: true } }, payments: { orderBy: { createdAt: 'asc' } } } }));
+    return serializeSale(await tx.sale.findUnique({ where: { id: sale.id }, include: saleInclude }));
   }, { isolationLevel: 'Serializable' });
 }
