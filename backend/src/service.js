@@ -750,6 +750,8 @@ export async function receiveInventoryStock(role, actorId, input) {
 export async function updateInventoryItem(role, actorId, input) {
   requireRole(role, ROLES);
   if (!input.id) throw new Error('NOT_FOUND');
+  const sku = String(input.sku || '').trim().toUpperCase();
+  if (!sku || !/^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(sku)) throw new Error('INVALID_INVENTORY_ITEM');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
     if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
@@ -757,7 +759,8 @@ export async function updateInventoryItem(role, actorId, input) {
     const data = inventoryInput(input, categoriesByName);
     const existing = await tx.part.findUnique({ where: { id: input.id } });
     if (!existing) throw new Error('NOT_FOUND');
-    const part = await tx.part.update({ where: { id: input.id }, data });
+    if (sku !== existing.sku && await tx.part.findUnique({ where: { sku } })) throw new Error('INVENTORY_SKU_EXISTS');
+    const part = await tx.part.update({ where: { id: input.id }, data: { ...data, sku } });
     const quantityChange = part.stockQty - existing.stockQty;
     if (quantityChange !== 0) await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: quantityChange > 0 ? 'IN' : 'OUT', quantity: Math.abs(quantityChange), unitPrice: quantityChange > 0 ? part.costPrice : part.retailPrice } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.updated', entity: 'Part', entityId: part.id } });
