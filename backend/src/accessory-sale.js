@@ -1,5 +1,3 @@
-export const accessoryCategories = new Set(['Accessory', 'Cable']);
-
 const cents = (value) => {
   const text = String(value ?? '').trim();
   if (!/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(text)) throw new Error('INVALID_ACCESSORY_SALE');
@@ -43,10 +41,12 @@ export function matchesAccessorySale(sale, prepared) {
 }
 
 export function accessoryRevenueFromSales(sales) {
+  // Every SaleItem is created exclusively by createAccessorySale, which only ever
+  // accepts parts whose category belongs to the ACCESSORY group, so no further
+  // category filtering is needed here.
   const total = sales
     .filter((sale) => !sale.ticketId && sale.status === 'FINALIZED' && sale.revenueRecognizedAt && !sale.revenueReversedAt)
     .flatMap((sale) => sale.items || [])
-    .filter((item) => accessoryCategories.has(item.category))
     .reduce((sum, item) => sum + item.quantity * Number(item.unitPrice), 0);
   return Math.round(total * 100) / 100;
 }

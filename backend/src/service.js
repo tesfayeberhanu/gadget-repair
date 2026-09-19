@@ -2,7 +2,7 @@ import { prisma } from './prisma.js';
 import { createSession, hashPassword, requireRole, ROLES, verifyPassword } from './auth.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { accountingTotals, canCompleteWithBalance, creditCustomerValue, creditEligibleForDelivery, finalizeInvoiceSnapshot, invoiceFinancials, repairRevenueBreakdown } from './accounting.js';
-import { accessoryCategories, accessoryRevenueFromSales, matchesAccessorySale, prepareAccessorySale } from './accessory-sale.js';
+import { accessoryRevenueFromSales, matchesAccessorySale, prepareAccessorySale } from './accessory-sale.js';
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website'],
@@ -69,9 +69,23 @@ function serializeRepair(ticket, role, actorId = null) {
   };
 }
 
-function serializePart(part, role) {
-  const base = { id: part.id, sku: part.sku, name: part.name, category: part.category || 'Other', description: part.description || '', device: part.compatibleDevices || 'Universal', stock: part.stockQty, min: part.minimumStockQty, sellingPrice: Number(part.retailPrice), price: Number(part.retailPrice), createdAt: part.createdAt, updatedAt: part.updatedAt };
+function serializePart(part, role, categoryGroup) {
+  const sellAtCheckout = categoryGroup === 'ACCESSORY';
+  const base = { id: part.id, sku: part.sku, name: part.name, category: part.category || 'Other', description: part.description || '', device: part.compatibleDevices || 'Universal', stock: part.stockQty, min: part.minimumStockQty, sellingPrice: Number(part.retailPrice), price: Number(part.retailPrice), sellAtCheckout, createdAt: part.createdAt, updatedAt: part.updatedAt };
   return role === 'Admin' ? { ...base, buyingPrice: Number(part.costPrice), cost: Number(part.costPrice) } : base;
+}
+
+function serializeCategory(category) {
+  return { id: category.id, name: category.name, group: category.group };
+}
+
+const categoryGroups = ['SPARE_PART', 'ACCESSORY'];
+
+function categoryInput(input) {
+  const name = String(input.name || '').trim();
+  const group = String(input.group || '').trim().toUpperCase();
+  if (!name || name.length > 60 || !categoryGroups.includes(group)) throw new Error('INVALID_CATEGORY');
+  return { name, group };
 }
 
 function serializeSale(sale) {
@@ -485,9 +499,10 @@ export async function getWorkspace(role, actorId) {
     const item = permissionNavigation[permission];
     if (item && !userNavigation.includes(item)) userNavigation.push(item);
   }
-  const [tickets, parts, sales, customers, team, appointments, technicians, inventoryMovements, expenses, banners, socialLinks, staffProfiles, blogPosts] = await Promise.all([
+  const [tickets, parts, categories, sales, customers, team, appointments, technicians, inventoryMovements, expenses, banners, socialLinks, staffProfiles, blogPosts] = await Promise.all([
     prisma.repairTicket.findMany({ include: repairInclude, orderBy: { createdAt: 'desc' } }),
     prisma.part.findMany({ orderBy: { name: 'asc' } }),
+    prisma.category.findMany({ orderBy: [{ group: 'asc' }, { name: 'asc' }] }),
     role === 'Admin' || actor.permissions.includes('MANAGE_POS') || actor.permissions.includes('VIEW_REPORTS') || actor.permissions.includes('VIEW_DAILY_SALES') ? prisma.sale.findMany({ include: saleInclude, orderBy: { createdAt: 'desc' } }) : [],
     role === 'Admin' || actor.permissions.includes('VIEW_CUSTOMERS')
       ? prisma.customer.findMany({ include: { _count: { select: { repairs: true } }, sales: { include: saleInclude, orderBy: { createdAt: 'desc' } } }, orderBy: { name: 'asc' } })
@@ -512,7 +527,8 @@ export async function getWorkspace(role, actorId) {
     ? tickets.filter((ticket) => ticket.assignedTechId === actor.id)
     : tickets;
   const repairs = visibleTickets.map((ticket) => serializeRepair(ticket, role, actor?.id));
-  const inventory = parts.map((part) => serializePart(part, role));
+  const categoriesByName = new Map(categories.map((category) => [category.name, category.group]));
+  const inventory = parts.map((part) => serializePart(part, role, categoriesByName.get(part.category)));
   const active = visibleTickets.filter((ticket) => !['DELIVERED', 'PICKED_UP'].includes(ticket.status));
   const technicianTickets = role === 'Technician' ? tickets.filter((ticket) => ticket.assignedTechId === actor.id) : [];
   const { revenue: totalRevenue, cashCollected, accountsReceivable } = accountingTotals(sales);
@@ -570,6 +586,7 @@ export async function getWorkspace(role, actorId) {
     dashboard,
     repairs,
     inventory,
+    categories: role === 'Admin' || actor.permissions.includes('VIEW_INVENTORY') ? categories.map(serializeCategory) : [],
     expenses: role === 'Admin' ? expenses.map(serializeExpense) : [],
     sales: sales.map(serializeSale),
     customers: customers.map(serializeCustomer),
@@ -675,23 +692,24 @@ export async function deactivateStaff(role, actorId, id) {
 
 export async function createInventoryItem(role, actorId, input) {
   requireRole(role, ROLES);
-  const data = inventoryInput(input);
   const requestedSku = String(input.sku || '').trim().toUpperCase();
   if (requestedSku && !/^[A-Z0-9][A-Z0-9_-]{0,63}$/.test(requestedSku)) throw new Error('INVALID_INVENTORY_ITEM');
 
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
     if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    const categoriesByName = new Map((await tx.category.findMany()).map((category) => [category.name, category.group]));
+    const data = inventoryInput(input, categoriesByName);
     const sku = requestedSku || `INV-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
     if (await tx.part.findUnique({ where: { sku } })) throw new Error('INVENTORY_SKU_EXISTS');
     const part = await tx.part.create({ data: { sku, ...data, minimumStockQty: 5 } });
     if (part.stockQty > 0) await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: 'IN', quantity: part.stockQty, unitPrice: part.costPrice } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.created', entity: 'Part', entityId: part.id } });
-    return serializePart(part, role);
+    return serializePart(part, role, categoriesByName.get(part.category));
   });
 }
 
-function inventoryInput(input) {
+function inventoryInput(input, categoriesByName) {
   const name = String(input.name || '').trim();
   const category = String(input.category || '').trim();
   const description = String(input.description || '').trim() || null;
@@ -699,10 +717,11 @@ function inventoryInput(input) {
   const buyingPrice = String(input.buyingPrice ?? input.unitPrice ?? '').trim();
   const sellingPrice = String(input.sellingPrice ?? input.unitPrice ?? '').trim();
   const costPrice = Number(buyingPrice);
-  const categories = ['Screen', 'Battery', 'Accessory', 'Cable', 'Camera', 'Part', 'Other'];
-  const retailPrice = accessoryCategories.has(category) ? 0 : Number(sellingPrice);
-  if (!name || !categories.includes(category) || input.quantity === '' || !/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(buyingPrice)
-    || (!accessoryCategories.has(category) && !/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(sellingPrice))
+  const group = categoriesByName.get(category);
+  const isAccessory = group === 'ACCESSORY';
+  const retailPrice = isAccessory ? 0 : Number(sellingPrice);
+  if (!name || !group || input.quantity === '' || !/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(buyingPrice)
+    || (!isAccessory && !/^(0|[1-9]\d{0,7})(\.\d{1,2})?$/.test(sellingPrice))
     || !Number.isInteger(stockQty) || stockQty < 0 || !Number.isFinite(costPrice) || costPrice < 0 || !Number.isFinite(retailPrice) || retailPrice < 0) throw new Error('INVALID_INVENTORY_ITEM');
   return { name, category, description, stockQty, costPrice, retailPrice };
 }
@@ -723,24 +742,26 @@ export async function receiveInventoryStock(role, actorId, input) {
     const updated = await tx.part.update({ where: { id: part.id }, data: { stockQty: { increment: quantity }, costPrice: buyingPrice } });
     await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: 'IN', quantity, unitPrice: buyingPrice } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.received', entity: 'Part', entityId: part.id } });
-    return serializePart(updated, role);
+    const category = await tx.category.findUnique({ where: { name: part.category } });
+    return serializePart(updated, role, category?.group);
   });
 }
 
 export async function updateInventoryItem(role, actorId, input) {
   requireRole(role, ROLES);
   if (!input.id) throw new Error('NOT_FOUND');
-  const data = inventoryInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
     if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    const categoriesByName = new Map((await tx.category.findMany()).map((category) => [category.name, category.group]));
+    const data = inventoryInput(input, categoriesByName);
     const existing = await tx.part.findUnique({ where: { id: input.id } });
     if (!existing) throw new Error('NOT_FOUND');
     const part = await tx.part.update({ where: { id: input.id }, data });
     const quantityChange = part.stockQty - existing.stockQty;
     if (quantityChange !== 0) await tx.inventoryMovement.create({ data: { partId: part.id, category: part.category || 'Other', direction: quantityChange > 0 ? 'IN' : 'OUT', quantity: Math.abs(quantityChange), unitPrice: quantityChange > 0 ? part.costPrice : part.retailPrice } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.updated', entity: 'Part', entityId: part.id } });
-    return serializePart(part, role);
+    return serializePart(part, role, categoriesByName.get(part.category));
   });
 }
 
@@ -755,6 +776,53 @@ export async function deleteInventoryItem(role, actorId, id) {
     if (existing._count.ticketParts > 0) throw new Error('INVENTORY_IN_USE');
     await tx.part.delete({ where: { id } });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'inventory.deleted', entity: 'Part', entityId: id } });
+    return { success: true };
+  });
+}
+
+export async function createCategory(role, actorId, input) {
+  requireRole(role, ROLES);
+  const data = categoryInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    if (await tx.category.findUnique({ where: { name: data.name } })) throw new Error('CATEGORY_EXISTS');
+    const category = await tx.category.create({ data });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'category.created', entity: 'Category', entityId: category.id } });
+    return serializeCategory(category);
+  });
+}
+
+export async function updateCategory(role, actorId, input) {
+  requireRole(role, ROLES);
+  if (!input.id) throw new Error('NOT_FOUND');
+  const data = categoryInput(input);
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    const existing = await tx.category.findUnique({ where: { id: input.id } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const duplicate = await tx.category.findFirst({ where: { name: data.name, id: { not: input.id } } });
+    if (duplicate) throw new Error('CATEGORY_EXISTS');
+    const category = await tx.category.update({ where: { id: input.id }, data });
+    if (data.name !== existing.name) await tx.part.updateMany({ where: { category: existing.name }, data: { category: data.name } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'category.updated', entity: 'Category', entityId: category.id } });
+    return serializeCategory(category);
+  });
+}
+
+export async function deleteCategory(role, actorId, id) {
+  requireRole(role, ROLES);
+  if (!id) throw new Error('NOT_FOUND');
+  return prisma.$transaction(async (tx) => {
+    const actor = await actorFor(actorId, role, tx);
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    const existing = await tx.category.findUnique({ where: { id } });
+    if (!existing) throw new Error('NOT_FOUND');
+    const inUse = await tx.part.count({ where: { category: existing.name } });
+    if (inUse > 0) throw new Error('CATEGORY_IN_USE');
+    await tx.category.delete({ where: { id } });
+    await tx.auditLog.create({ data: { userId: actor.id, action: 'category.deleted', entity: 'Category', entityId: id } });
     return { success: true };
   });
 }
@@ -1102,10 +1170,11 @@ export async function createAccessorySale(role, actorId, input) {
       return serializeSale(existing);
     }
 
+    const accessoryCategoryNames = new Set((await tx.category.findMany({ where: { group: 'ACCESSORY' } })).map((category) => category.name));
     const stock = [];
     for (const line of prepared.items) {
       const part = await tx.part.findUnique({ where: { sku: line.sku } });
-      if (!part || !accessoryCategories.has(part.category)) throw new Error('ACCESSORY_NOT_FOUND');
+      if (!part || !accessoryCategoryNames.has(part.category)) throw new Error('ACCESSORY_NOT_FOUND');
       const deducted = await tx.part.updateMany({ where: { id: part.id, stockQty: { gte: line.quantity } }, data: { stockQty: { decrement: line.quantity } } });
       if (deducted.count !== 1) throw new Error('INSUFFICIENT_PART_STOCK');
       stock.push({ part, ...line });

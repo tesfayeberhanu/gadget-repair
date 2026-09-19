@@ -4,8 +4,6 @@ import { useRef, useState } from 'react';
 import { money } from './SharedUI';
 import '../accessory-sales.css';
 
-const accessoryCategories = new Set(['Accessory', 'Cable']);
-
 export default function AccessorySaleForm({ inventory, onSale, close }) {
   const [sku, setSku] = useState('');
   const [lines, setLines] = useState([]);
@@ -14,7 +12,7 @@ export default function AccessorySaleForm({ inventory, onSale, close }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const skuInputRef = useRef(null);
-  const accessories = inventory.filter((part) => accessoryCategories.has(part.category));
+  const accessories = inventory.filter((part) => part.sellAtCheckout);
   const total = lines.reduce((sum, line) => sum + Math.round(Number(line.unitPrice || 0) * 100) * Number(line.quantity || 0), 0) / 100;
 
   const addSku = () => {
