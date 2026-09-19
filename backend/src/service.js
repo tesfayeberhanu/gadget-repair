@@ -6,12 +6,12 @@ import { accessoryRevenueFromSales, matchesAccessorySale, prepareAccessorySale }
 
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website'],
-  Technician: ['Overview'],
+  Technician: [],
   'Front Desk': [],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
-const permissionNavigation = { VIEW_REPAIRS: 'Repairs', MANAGE_INTAKE: 'New Intake', MANAGE_APPOINTMENTS: 'Appointments', VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', MANAGE_WEBSITE: 'Website', MANAGE_WEBSITE_BANNERS: 'Website', MANAGE_WEBSITE_SOCIAL: 'Website', MANAGE_WEBSITE_SHOWCASE: 'Website', MANAGE_WEBSITE_BLOG: 'Website' };
+const permissionNavigation = { VIEW_OVERVIEW: 'Overview', VIEW_REPAIRS: 'Repairs', MANAGE_INTAKE: 'New Intake', MANAGE_APPOINTMENTS: 'Appointments', VIEW_REPORTS: 'Reports', VIEW_CUSTOMERS: 'Customers', MANAGE_POS: 'Point of Sale', VIEW_INVENTORY: 'Inventory', VIEW_CATEGORIES: 'Inventory', MANAGE_WEBSITE: 'Website', MANAGE_WEBSITE_BANNERS: 'Website', MANAGE_WEBSITE_SOCIAL: 'Website', MANAGE_WEBSITE_SHOWCASE: 'Website', MANAGE_WEBSITE_BLOG: 'Website' };
 const allowedPermissions = [...Object.keys(permissionNavigation), 'VIEW_DAILY_SALES', 'VIEW_SPAREPARTS_REVENUE', 'VIEW_ACCESSORIES_REVENUE', 'VIEW_MAINTENANCE_REVENUE', 'VIEW_CASH_COLLECTED', 'VIEW_ACCOUNTS_RECEIVABLE', 'VIEW_DAILY_EXPENSES', 'VIEW_WEEKLY_EXPENSES', 'VIEW_MONTHLY_EXPENSES', 'VIEW_YEARLY_EXPENSES'];
 const statusOrder = ['PENDING', 'IN_PROGRESS', 'WAITING_FOR_PARTS', 'COMPLETED', 'DELIVERED'];
 const statusLabel = { PENDING: 'Received', IN_PROGRESS: 'Diagnosing', WAITING_FOR_PARTS: 'Repair Approved', COMPLETED: 'In Repair', DELIVERED: 'Ready for Pickup', PICKED_UP: 'Delivered' };
@@ -586,7 +586,7 @@ export async function getWorkspace(role, actorId) {
     dashboard,
     repairs,
     inventory,
-    categories: role === 'Admin' || actor.permissions.includes('VIEW_INVENTORY') ? categories.map(serializeCategory) : [],
+    categories: role === 'Admin' || actor.permissions.includes('VIEW_INVENTORY') || actor.permissions.includes('VIEW_CATEGORIES') ? categories.map(serializeCategory) : [],
     expenses: role === 'Admin' ? expenses.map(serializeExpense) : [],
     sales: sales.map(serializeSale),
     customers: customers.map(serializeCustomer),
@@ -788,7 +788,7 @@ export async function createCategory(role, actorId, input) {
   const data = categoryInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY') && !actor.permissions.includes('VIEW_CATEGORIES')) throw new Error('FORBIDDEN');
     if (await tx.category.findUnique({ where: { name: data.name } })) throw new Error('CATEGORY_EXISTS');
     const category = await tx.category.create({ data });
     await tx.auditLog.create({ data: { userId: actor.id, action: 'category.created', entity: 'Category', entityId: category.id } });
@@ -802,7 +802,7 @@ export async function updateCategory(role, actorId, input) {
   const data = categoryInput(input);
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY') && !actor.permissions.includes('VIEW_CATEGORIES')) throw new Error('FORBIDDEN');
     const existing = await tx.category.findUnique({ where: { id: input.id } });
     if (!existing) throw new Error('NOT_FOUND');
     const duplicate = await tx.category.findFirst({ where: { name: data.name, id: { not: input.id } } });
@@ -819,7 +819,7 @@ export async function deleteCategory(role, actorId, id) {
   if (!id) throw new Error('NOT_FOUND');
   return prisma.$transaction(async (tx) => {
     const actor = await actorFor(actorId, role, tx);
-    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY')) throw new Error('FORBIDDEN');
+    if (role !== 'Admin' && !actor.permissions.includes('VIEW_INVENTORY') && !actor.permissions.includes('VIEW_CATEGORIES')) throw new Error('FORBIDDEN');
     const existing = await tx.category.findUnique({ where: { id } });
     if (!existing) throw new Error('NOT_FOUND');
     const inUse = await tx.part.count({ where: { category: existing.name } });
