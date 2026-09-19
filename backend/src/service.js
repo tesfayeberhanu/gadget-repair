@@ -7,7 +7,7 @@ import { accessoryCategories, accessoryRevenueFromSales, matchesAccessorySale, p
 const navigation = {
   Admin: ['Overview', 'Repairs', 'Inventory', 'Expense', 'Point of Sale', 'Customers', 'Reports', 'Team', 'Website'],
   Technician: ['Overview'],
-  'Front Desk': ['Overview'],
+  'Front Desk': [],
 };
 const dbRole = { Admin: 'ADMIN', Technician: 'TECHNICIAN', 'Front Desk': 'FRONT_DESK' };
 const roleLabel = { ADMIN: 'Admin', TECHNICIAN: 'Technician', FRONT_DESK: 'Front Desk' };
